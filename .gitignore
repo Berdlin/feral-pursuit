@@ -1,0 +1,9 @@
+# Ignore the secret keys
+.env
+
+# Ignore the heavy library files
+node_modules/
+
+# Ignore system files
+.DS_Store
+Thumbs.db

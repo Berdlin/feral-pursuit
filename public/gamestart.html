@@ -1,0 +1,106 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Feral Pursuit - Identity</title>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Courier+Prime&family=Cinzel:wght@700&display=swap');
+
+        body {
+            background-color: #000;
+            color: #ccc;
+            font-family: 'Courier Prime', monospace;
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+
+        .container {
+            width: 90%;
+            max-width: 500px;
+            padding: 40px;
+            border: 1px solid #333;
+            background-color: rgba(10, 15, 10, 0.95);
+            box-shadow: 0 0 30px rgba(0, 255, 0, 0.1);
+        }
+
+        h1 {
+            font-family: 'Cinzel', serif;
+            color: #ddd;
+            border-bottom: 2px solid #ff4500;
+        }
+
+        input {
+            width: 100%;
+            padding: 15px;
+            margin-top: 10px;
+            background: #000;
+            border: 1px solid #444;
+            color: #0f0;
+            font-family: 'Courier Prime', monospace;
+            font-size: 1.2em;
+            box-sizing: border-box;
+        }
+
+        .btn {
+            width: 100%;
+            padding: 20px;
+            margin-top: 30px;
+            background-color: #1a1a1a;
+            color: #fff;
+            border: 1px solid #ff4500;
+            font-family: 'Cinzel', serif;
+            font-size: 1.2em;
+            cursor: pointer;
+        }
+
+        .btn:hover {
+            background-color: #ff4500;
+            color: #000;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="container">
+        <h1>IDENTITY VERIFICATION</h1>
+        <label>ENTER CODENAME</label>
+        <input type="text" id="username" placeholder="USER_ID..." oninput="checkName()">
+
+        <div id="passSection" style="display:none;">
+            <label style="margin-top:20px; display:block;">ACCESS CODE REQUIRED</label>
+            <input type="password" id="password" placeholder="••••••••••">
+        </div>
+
+        <button class="btn" onclick="start()">INITIATE SEQUENCE</button>
+        <p id="msg" style="color: red; margin-top: 15px;"></p>
+    </div>
+
+    <script>
+        function checkName() {
+            const val = document.getElementById('username').value.trim();
+            // Show password field if trying to be beka_ei
+            document.getElementById('passSection').style.display =
+                (val.toLowerCase() === 'beka_ei') ? 'block' : 'none';
+        }
+
+        function start() {
+            const user = document.getElementById('username').value.trim();
+            const pass = document.getElementById('password').value.trim();
+
+            if (!user) { document.getElementById('msg').innerText = "IDENTITY REQUIRED"; return; }
+
+            localStorage.setItem('gameUsername', user);
+            localStorage.setItem('gamePass', pass); // Saves password for server check
+
+            document.getElementById('msg').style.color = 'lime';
+            document.getElementById('msg').innerText = "CONNECTING...";
+            setTimeout(() => window.location.href = 'realgame.html', 500);
+        }
+    </script>
+</body>
+
+</html>

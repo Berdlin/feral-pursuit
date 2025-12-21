@@ -1,0 +1,303 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Feral Pursuit - Briefing</title>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Cinzel:wght@400;700&family=Lato:wght@300;400&display=swap');
+
+        body {
+            margin: 0;
+            padding: 0;
+            background-color: #050505;
+            background-image: radial-gradient(circle at center, #1a0a0a 0%, #000000 100%);
+            color: #e0e0e0;
+            font-family: 'Lato', sans-serif;
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            overflow-x: hidden;
+            overflow-y: auto;
+        }
+
+        .background-fx {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: url('https://www.transparenttextures.com/patterns/dark-matter.png');
+            opacity: 0.3;
+            animation: pulseBg 10s infinite alternate;
+            z-index: 0;
+            pointer-events: none;
+        }
+
+        .container {
+            position: relative;
+            z-index: 10;
+            max-width: 800px;
+            width: 90%;
+            text-align: center;
+            padding: 40px;
+            margin: 40px 20px;
+            border: 2px solid #500;
+            background-color: rgba(0, 0, 0, 0.9);
+            box-shadow: 0 0 50px rgba(255, 0, 0, 0.3);
+            border-radius: 4px;
+            animation: fadeIn 1.5s ease-out;
+        }
+
+        h1 {
+            font-family: 'Cinzel', serif;
+            color: #ff4500;
+            font-size: 3.5em;
+            text-shadow: 0 0 15px rgba(255, 69, 0, 0.7);
+            margin-bottom: 20px;
+        }
+
+        .stats-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+            margin-bottom: 30px;
+        }
+
+        .record-box {
+            background: #110;
+            border: 1px solid #ffd700;
+            padding: 15px;
+            color: #ffd700;
+            font-family: 'Cinzel', serif;
+            box-shadow: 0 0 10px rgba(255, 215, 0, 0.1);
+        }
+
+        .record-box.world {
+            background: #0a111a;
+            border-color: #00bfff;
+            color: #00bfff;
+            box-shadow: 0 0 10px rgba(0, 191, 255, 0.2);
+        }
+
+        .record-title {
+            font-size: 0.8em;
+            letter-spacing: 1px;
+            margin-bottom: 5px;
+            opacity: 0.8;
+        }
+
+        .record-val {
+            font-size: 1.8em;
+            font-weight: bold;
+        }
+
+        .record-holder {
+            font-size: 0.7em;
+            color: #ccc;
+            margin-top: 5px;
+        }
+
+        p {
+            font-size: 1.1em;
+            margin-bottom: 30px;
+            line-height: 1.6;
+        }
+
+        .btn-group {
+            display: flex;
+            justify-content: center;
+            gap: 20px;
+            margin-top: 40px;
+            flex-wrap: wrap;
+        }
+
+        .btn {
+            display: inline-block;
+            padding: 15px 30px;
+            background-color: #300;
+            color: #fff;
+            text-decoration: none;
+            font-family: 'Cinzel', serif;
+            font-size: 1.2em;
+            border: 2px solid #ff4500;
+            border-radius: 5px;
+            transition: all 0.3s ease-in-out;
+            cursor: pointer;
+        }
+
+        .btn:hover {
+            transform: scale(1.05);
+            background-color: #ff4500;
+            color: #000;
+        }
+
+        .btn-info {
+            background-color: #003344;
+            border-color: #00bfff;
+        }
+
+        /* Modal Styles */
+        #tutorialModal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.98);
+            z-index: 100;
+            overflow-y: auto;
+        }
+
+        .modal-content {
+            background: #0f0f0f;
+            margin: 5% auto;
+            padding: 30px;
+            border: 1px solid #00bfff;
+            width: 85%;
+            max-width: 900px;
+            color: #ccc;
+            border-radius: 5px;
+            position: relative;
+        }
+
+        .control-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+            gap: 20px;
+            text-align: left;
+            margin-top: 10px;
+        }
+
+        .control-box {
+            background: #1a1a1a;
+            padding: 15px;
+            border-left: 3px solid #ff4500;
+        }
+
+        .key {
+            display: inline-block;
+            background: #333;
+            padding: 2px 8px;
+            border-radius: 3px;
+            border: 1px solid #555;
+            color: #fff;
+            font-weight: bold;
+            font-family: monospace;
+        }
+
+        @keyframes fadeIn {
+            from {
+                opacity: 0;
+                transform: translateY(30px);
+            }
+
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        @keyframes pulseBg {
+            from {
+                transform: scale(1);
+            }
+
+            to {
+                transform: scale(1.1);
+            }
+        }
+    </style>
+</head>
+
+<body>
+    <div class="background-fx"></div>
+    <div class="container">
+        <h1>FERAL PURSUIT</h1>
+
+        <div class="stats-grid">
+            <div class="record-box">
+                <div class="record-title">YOUR PERSONAL BEST</div>
+                <div class="record-val" id="pbDisplay">--</div>
+                <div class="record-holder">DAYS SURVIVED</div>
+            </div>
+            <div class="record-box world">
+                <div class="record-title">LOCAL DEVICE RECORD</div>
+                <div class="record-val" id="wrDisplay">--</div>
+                <div class="record-holder" id="wrHolder">NO DATA</div>
+            </div>
+        </div>
+
+        <p>
+            The hunt approaches. You are the prey, but you may become the predator.
+            <br><br>
+            <strong>SURVIVAL GUIDE:</strong>
+            <br>
+            1. <strong>Collection Phase:</strong> Loot chests before the timer expires.
+            <br>
+            2. <strong>Day 1 Protocol:</strong> A single Alpha Wolf hunts you. <strong>Beware:</strong> 60% of loot is
+            CURSED.
+            <br>
+            3. <strong>Escalation:</strong> As Days pass, the Wolf Pack grows.
+            <br>
+            4. <strong>The Pack:</strong> Dogs will intelligently <strong>scatter</strong> to hold off multiple wolves.
+            <br>
+            5. <strong>Permadeath:</strong> If a companion dies, they are gone forever.
+        </p>
+        <div class="btn-group">
+            <a href="gamestart.html" class="btn">Start Single Player</a>
+            <a href="gamelobby.html" class="btn" style="border-color: #4CAF50;">Multiplayer Lobby</a>
+            <button class="btn btn-info" onclick="openTutorial()">Field Manual (Controls)</button>
+        </div>
+    </div>
+
+    <div id="tutorialModal">
+        <div class="modal-content">
+            <h2 style="font-family: 'Cinzel'; color: #00bfff;">OPERATOR CONTROLS</h2>
+            <div class="control-grid">
+                <div class="control-box">
+                    <h3 style="color: #4CAF50; border-bottom: 1px solid #444; padding-bottom:5px;">Desktop</h3>
+                    <ul style="line-height: 2.0;">
+                        <li><span class="key">WASD</span> : Movement</li>
+                        <li><span class="key">SPACE</span> : Attack</li>
+                        <li><span class="key">E</span> : Loot</li>
+                        <li><span class="key">Q</span> : Inventory</li>
+                        <li><span class="key">O</span> : Dog Stats</li>
+                    </ul>
+                </div>
+                <div class="control-box">
+                    <h3 style="color: #ffaa00; border-bottom: 1px solid #444; padding-bottom:5px;">Mobile</h3>
+                    <ul style="line-height: 2.0;">
+                        <li><strong>Joystick</strong>: Move</li>
+                        <li><strong>Buttons</strong>: Attack, Loot, Inv, Dogs<
+                    </ul>
+                </div>
+            </div>
+            <button class="btn" style="margin-top: 20px; width: 100%; border-color: #00bfff;"
+                onclick="closeTutorial()">ACKNOWLEDGE</button>
+        </div>
+    </div>
+
+    <script>
+        window.onload = function () {
+            // Load Personal Best
+            const myBest = localStorage.getItem('feral_personalBest') || "0";
+            document.getElementById('pbDisplay').innerText = `${myBest}`;
+
+            // Load Local Device High Score (Instead of Online World Record)
+            const localHigh = localStorage.getItem('feral_localHighscore') || "0";
+            const localChamp = localStorage.getItem('feral_localChampion') || "None";
+
+            document.getElementById('wrDisplay').innerText = localHigh;
+            document.getElementById('wrHolder').innerText = `HELD BY: ${localChamp.toUpperCase()}`;
+        };
+
+        function openTutorial() { document.getElementById('tutorialModal').style.display = 'block'; document.body.style.overflow = 'hidden'; }
+        function closeTutorial() { document.getElementById('tutorialModal').style.display = 'none'; document.body.style.overflow = 'auto'; }
+    </script>
+</body>
+
+</html>

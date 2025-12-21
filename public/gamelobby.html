@@ -1,0 +1,93 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Feral Pursuit - Lobby</title>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Cinzel:wght@400;700&family=Lato:wght@300;400&display=swap');
+
+        body {
+            margin: 0;
+            background: #050505;
+            color: #e0e0e0;
+            font-family: 'Lato', sans-serif;
+            height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+
+        .container {
+            background: rgba(10, 10, 10, 0.9);
+            padding: 40px;
+            border-radius: 10px;
+            width: 350px;
+            text-align: center;
+            border: 1px solid #333;
+        }
+
+        input {
+            width: 90%;
+            padding: 12px;
+            margin: 10px 0;
+            background: #222;
+            border: 1px solid #444;
+            color: #fff;
+        }
+
+        .btn {
+            width: 100%;
+            padding: 12px;
+            margin: 15px 0;
+            background: #ff4500;
+            border: none;
+            font-weight: bold;
+            cursor: pointer;
+        }
+
+        .btn:hover {
+            background: #ff6622;
+        }
+
+        .btn-green {
+            background: #4CAF50;
+        }
+
+        .copy-link {
+            font-size: 0.8em;
+            color: #00bfff;
+            cursor: pointer;
+            text-decoration: underline;
+            margin-top: 5px;
+            display: block;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="container">
+        <h1>Lobby</h1>
+        <div id="connection-screen">
+            <input type="text" id="usernameInput" placeholder="Enter Your Username" required>
+            <button onclick="hostGame()" class="btn">Host Game</button>
+            <div style="position:relative; margin-top: 20px;">
+                <input type="text" id="joinCode" placeholder="Room Code (4 Digits)">
+                <button onclick="joinGame()" class="btn">Join Game</button>
+            </div>
+            <p id="error-message" style="color: #ff6347;"></p>
+        </div>
+        <div id="lobby-screen" style="display: none;">
+            <h2>Room: <span id="displayCode" style="color: #4CAF50;"></span></h2>
+            <span class="copy-link" onclick="copyInvite()">[Copy Invite Link]</span>
+            <ul id="playerList" style="text-align: left; background: #111; padding: 10px; list-style: none;"></ul>
+            <button id="startButton" onclick="startGame()" class="btn btn-green" style="display: none;">Start
+                Mission</button>
+        </div>
+    </div>
+    <script src="/socket.io/socket.io.js"></script>
+    <script src="client.js"></script>
+</body>
+
+</html>
