@@ -6,7 +6,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>Feral Pursuit - Multiplayer</title>
     <style>
-        /* EXACT STYLES FROM REALGAME.HTML */
+        /* [KEEPING EXACT CSS STYLES] */
         body {
             font-family: 'Segoe UI', sans-serif;
             background-color: #080808;
@@ -51,7 +51,6 @@
             will-change: transform;
         }
 
-        /* MINIMAP */
         #minimap-container {
             position: absolute;
             top: 20px;
@@ -74,15 +73,10 @@
         }
 
         .mm-player {
-            background-color: #ff4500;
             width: 6px;
             height: 6px;
             z-index: 2;
             border: 1px solid white;
-        }
-
-        .mm-other {
-            background-color: #00bfff;
         }
 
         .mm-wolf {
@@ -91,61 +85,6 @@
 
         .mm-chest {
             background-color: #ffd700;
-        }
-
-        /* ADMIN PANEL */
-        #adminPanel {
-            position: absolute;
-            top: 50%;
-            left: 50%;
-            transform: translate(-50%, -50%);
-            width: 320px;
-            background: rgba(0, 0, 0, 0.95);
-            border: 2px solid #00ff00;
-            padding: 20px;
-            z-index: 300;
-            display: none;
-            color: #00ff00;
-            font-family: monospace;
-            box-shadow: 0 0 20px #00ff00;
-        }
-
-        .admin-row {
-            margin: 10px 0;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-        }
-
-        .admin-input {
-            width: 60px;
-            background: #222;
-            border: 1px solid #00ff00;
-            color: #fff;
-            padding: 5px;
-            text-align: center;
-        }
-
-        .admin-btn {
-            width: 100%;
-            background: #003300;
-            border: 1px solid #00ff00;
-            color: #fff;
-            padding: 8px;
-            cursor: pointer;
-            margin-top: 10px;
-            font-weight: bold;
-        }
-
-        .admin-btn:hover {
-            background: #00ff00;
-            color: #000;
-        }
-
-        .admin-danger {
-            background: #330000;
-            border-color: #ff0000;
-            color: #ff0000;
         }
 
         /* INVENTORY */
@@ -197,14 +136,7 @@
             display: flex;
             justify-content: center;
             align-items: center;
-        }
-
-        .p-self {
-            background: #ff4500;
-        }
-
-        .p-other {
-            background: #00bfff;
+            box-shadow: 0 0 10px rgba(255, 255, 255, 0.3);
         }
 
         .name-tag {
@@ -215,6 +147,7 @@
             border-radius: 4px;
             margin-bottom: 5px;
             white-space: nowrap;
+            font-weight: bold;
         }
 
         .wolf-entity {
@@ -250,6 +183,31 @@
             font-size: 1.8em;
             z-index: 8;
             position: absolute;
+            transform: translate(-50%, -50%);
+        }
+
+        /* FX */
+        .attack-range {
+            position: absolute;
+            border: 2px solid rgba(255, 255, 255, 0.5);
+            border-radius: 50%;
+            pointer-events: none;
+            animation: ripple 0.3s linear;
+            transform: translate(-50%, -50%);
+        }
+
+        @keyframes ripple {
+            from {
+                width: 0;
+                height: 0;
+                opacity: 1;
+            }
+
+            to {
+                width: 120px;
+                height: 120px;
+                opacity: 0;
+            }
         }
 
         /* HUD */
@@ -369,6 +327,63 @@
             font-size: 1.2em;
             opacity: 0;
             transition: opacity 0.5s;
+            z-index: 160;
+            white-space: nowrap;
+            border: 2px solid transparent;
+        }
+
+        #adminPanel {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            width: 320px;
+            background: rgba(0, 0, 0, 0.95);
+            border: 2px solid #00ff00;
+            padding: 20px;
+            z-index: 300;
+            display: none;
+            color: #00ff00;
+            font-family: monospace;
+            box-shadow: 0 0 20px #00ff00;
+        }
+
+        .admin-row {
+            margin: 10px 0;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .admin-input {
+            width: 60px;
+            background: #222;
+            border: 1px solid #00ff00;
+            color: #fff;
+            padding: 5px;
+            text-align: center;
+        }
+
+        .admin-btn {
+            width: 100%;
+            background: #003300;
+            border: 1px solid #00ff00;
+            color: #fff;
+            padding: 8px;
+            cursor: pointer;
+            margin-top: 10px;
+            font-weight: bold;
+        }
+
+        .admin-btn:hover {
+            background: #00ff00;
+            color: #000;
+        }
+
+        .admin-danger {
+            background: #330000;
+            border-color: #ff0000;
+            color: #ff0000;
         }
     </style>
 </head>
@@ -382,7 +397,7 @@
         </div>
 
         <div class="hud-top">
-            <div class="hud-stat">STATUS: <span id="statusDisplay">ALIVE</span></div>
+            <div class="hud-stat">DAY: <span id="levelDisplay">1</span></div>
             <div class="hud-stat">HP: <span id="hpDisplay">100</span></div>
             <div class="hud-stat">DMG: <span id="dmgDisplay">10</span></div>
             <div class="hud-stat">TIME: <span id="timeDisplay">--</span></div>
@@ -414,6 +429,9 @@
         <div class="game-stage" id="stage">
             <div id="minimap-container"></div>
             <div id="mapViewport">
+                <div id="fxLayer"
+                    style="position: absolute; top:0; left:0; width:100%; height:100%; pointer-events:none; z-index:5;">
+                </div>
                 <div id="entitiesLayer"></div>
             </div>
 
@@ -435,9 +453,9 @@
 
     <div id="gameOverOverlay">
         <h1 style="color:red" id="endTitle">GAME OVER</h1>
-        <p id="endReason" style="color:white"></p>
+        <p id="endReason" style="color:white; font-size: 1.5em;"></p>
         <button onclick="window.location.href='gameintro.html'"
-            style="padding:15px; background:#333; color:white; border:1px solid #ff4500; margin-top:20px;">MAIN
+            style="padding:15px 30px; background:#333; color:white; border:1px solid #ff4500; margin-top:20px; font-size:1.2em; cursor:pointer;">MAIN
             MENU</button>
     </div>
 
@@ -456,7 +474,13 @@
 
         if (isMobile) document.getElementById('mobileLayer').style.display = 'block';
 
-        socket.on('connect', () => { myId = socket.id; });
+        socket.on('connect', () => {
+            myId = socket.id;
+            // Send auth again if needed, or rely on lobby transfer
+            const u = localStorage.getItem('gameUsername') || "Guest";
+            const p = localStorage.getItem('gamePass') || "";
+            socket.emit('verifyIdentity', { username: u, password: p });
+        });
 
         // --- GAME LOOP RENDERING ---
         socket.on('gameStateUpdate', (state) => {
@@ -465,10 +489,34 @@
             updateMinimap(state);
         });
 
+        socket.on('alert', (data) => {
+            const el = document.getElementById('topAlertBox');
+            el.innerText = data.msg;
+            el.style.color = data.color;
+            el.style.borderColor = data.color;
+            el.style.opacity = 1;
+            setTimeout(() => el.style.opacity = 0, 3000);
+        });
+
+        socket.on('fx', (data) => {
+            if (data.type === 'attack') {
+                const layer = document.getElementById('fxLayer');
+                const ripple = document.createElement('div');
+                ripple.className = 'attack-range';
+                ripple.style.left = data.x + 'px';
+                ripple.style.top = data.y + 'px';
+                layer.appendChild(ripple);
+                setTimeout(() => ripple.remove(), 300);
+            }
+        });
+
         socket.on('gameOver', (data) => {
             document.getElementById('gameOverOverlay').style.display = 'flex';
             document.getElementById('endTitle').innerText = data.win ? "VICTORY" : "DEFEAT";
-            document.getElementById('endReason').innerText = data.reason;
+            document.getElementById('endReason').innerText = `${data.reason} (Day ${data.days})`;
+            // Report Score
+            const user = localStorage.getItem('gameUsername');
+            if (user) socket.emit('reportScore', { username: user, days: data.days });
         });
 
         function renderGame(state) {
@@ -488,7 +536,7 @@
             state.wolves.forEach(w => {
                 if (w.hp <= 0) return;
                 const el = document.createElement('div');
-                el.className = 'wolf-entity'; el.innerHTML = '🐺';
+                el.className = 'wolf-entity'; el.innerText = '🐺';
                 el.style.left = w.x + 'px'; el.style.top = w.y + 'px';
                 // Simple HP Bar
                 const hpBar = document.createElement('div');
@@ -507,10 +555,15 @@
                 const el = document.createElement('div');
                 el.className = 'icon';
                 el.style.left = p.x + 'px'; el.style.top = p.y + 'px';
+
+                // USE DISTINCT COLOR FROM SERVER
+                const bgColor = p.color || '#ff4500';
+
                 el.innerHTML = `
                     <div class="name-tag">${p.username}</div>
-                    <div class="player-icon ${id === myId ? 'p-self' : 'p-other'}">🏃</div>
+                    <div class="player-icon" style="background:${bgColor};">🏃</div>
                 `;
+                if (p.invulnerable) el.style.opacity = 0.5;
                 layer.appendChild(el);
 
                 // Draw Dogs
@@ -518,7 +571,7 @@
                     p.companions.forEach(dog => {
                         const dEl = document.createElement('div');
                         dEl.className = 'friendly-wolf';
-                        dEl.innerHTML = '🐕';
+                        dEl.innerText = '🐕';
                         dEl.style.left = dog.x + 'px'; dEl.style.top = dog.y + 'px';
                         layer.appendChild(dEl);
                     });
@@ -541,8 +594,8 @@
             if (!p) return;
             document.getElementById('hpDisplay').innerText = Math.ceil(p.hp);
             document.getElementById('dmgDisplay').innerText = p.dmg;
-            document.getElementById('statusDisplay').innerText = state.status.toUpperCase();
-            document.getElementById('timeDisplay').innerText = state.timer > 0 ? state.timer + 's' : 'HUNT';
+            document.getElementById('levelDisplay').innerText = state.day;
+            document.getElementById('timeDisplay').innerText = state.status === 'collection' ? state.timer + 's' : 'HUNT';
 
             // Update Inventory UI
             const invList = document.getElementById('invList');
@@ -561,18 +614,15 @@
             const scale = 150 / 1500;
             mm.innerHTML = '';
 
-            // Draw Wolves
-            state.wolves.forEach(w => {
-                if (w.hp > 0) createDot(mm, w.x, w.y, 'mm-wolf', scale);
-            });
-            // Draw Chests
-            state.chests.forEach(c => {
-                if (!c.opened) createDot(mm, c.x, c.y, 'mm-chest', scale);
-            });
-            // Draw Players
+            state.wolves.forEach(w => { if (w.hp > 0) createDot(mm, w.x, w.y, 'mm-wolf', scale); });
+            state.chests.forEach(c => { if (!c.opened) createDot(mm, c.x, c.y, 'mm-chest', scale); });
             for (const id in state.players) {
                 const p = state.players[id];
-                if (p.alive) createDot(mm, p.x, p.y, id === myId ? 'mm-player' : 'mm-other', scale);
+                if (p.alive) {
+                    const dot = createDot(mm, p.x, p.y, '', scale);
+                    dot.style.background = p.color;
+                    if (id === myId) { dot.style.border = "2px solid white"; dot.style.width = "8px"; dot.style.height = "8px"; }
+                }
             }
         }
 
@@ -582,6 +632,7 @@
             d.style.left = (x * scale) + 'px';
             d.style.top = (y * scale) + 'px';
             parent.appendChild(d);
+            return d;
         }
 
         // --- CONTROLS ---
@@ -592,18 +643,12 @@
             if (e.key.toLowerCase() === 'q') toggleInventory();
             if (e.key.toLowerCase() === 'a' && e.shiftKey) {
                 document.getElementById('adminPanel').style.display = 'block';
-                showAlert("ADMIN MODE");
             }
         });
         window.addEventListener('keyup', (e) => keyStates[e.key.toLowerCase()] = false);
 
         function sendAction(type) { socket.emit('playerAction', { type: type }); }
         function toggleInventory() { document.getElementById('inventoryPanel').classList.toggle('visible'); }
-        function showAlert(msg) {
-            const el = document.getElementById('topAlertBox');
-            el.innerText = msg; el.style.opacity = 1;
-            setTimeout(() => el.style.opacity = 0, 2000);
-        }
 
         // MOVEMENT LOOP
         setInterval(() => {
@@ -631,7 +676,6 @@
                 data.speed = document.getElementById('admSpeed').value;
             }
             socket.emit('adminCmd', data);
-            showAlert("COMMAND SENT");
         }
 
         // JOYSTICK

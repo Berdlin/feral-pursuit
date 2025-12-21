@@ -6,6 +6,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>Feral Pursuit - Briefing</title>
     <style>
+        /* [EXACT PREVIOUS CSS] */
         @import url('https://fonts.googleapis.com/css2?family=Cinzel:wght@400;700&family=Lato:wght@300;400&display=swap');
 
         body {
@@ -225,9 +226,9 @@
                 <div class="record-holder">DAYS SURVIVED</div>
             </div>
             <div class="record-box world">
-                <div class="record-title">LOCAL DEVICE RECORD</div>
-                <div class="record-val" id="wrDisplay">--</div>
-                <div class="record-holder" id="wrHolder">NO DATA</div>
+                <div class="record-title">WORLD RECORD</div>
+                <div class="record-val" id="wrDisplay">LOADING...</div>
+                <div class="record-holder" id="wrHolder">--</div>
             </div>
         </div>
 
@@ -238,14 +239,11 @@
             <br>
             1. <strong>Collection Phase:</strong> Loot chests before the timer expires.
             <br>
-            2. <strong>Day 1 Protocol:</strong> A single Alpha Wolf hunts you. <strong>Beware:</strong> 60% of loot is
-            CURSED.
+            2. <strong>Global Ranking:</strong> Only the strongest survivor holds the World Record.
             <br>
             3. <strong>Escalation:</strong> As Days pass, the Wolf Pack grows.
             <br>
-            4. <strong>The Pack:</strong> Dogs will intelligently <strong>scatter</strong> to hold off multiple wolves.
-            <br>
-            5. <strong>Permadeath:</strong> If a companion dies, they are gone forever.
+            4. <strong>Multiplayer:</strong> Work together, but remember: Death is permanent for the session.
         </p>
         <div class="btn-group">
             <a href="gamestart.html" class="btn">Start Single Player</a>
@@ -265,14 +263,13 @@
                         <li><span class="key">SPACE</span> : Attack</li>
                         <li><span class="key">E</span> : Loot</li>
                         <li><span class="key">Q</span> : Inventory</li>
-                        <li><span class="key">O</span> : Dog Stats</li>
                     </ul>
                 </div>
                 <div class="control-box">
                     <h3 style="color: #ffaa00; border-bottom: 1px solid #444; padding-bottom:5px;">Mobile</h3>
                     <ul style="line-height: 2.0;">
                         <li><strong>Joystick</strong>: Move</li>
-                        <li><strong>Buttons</strong>: Attack, Loot, Inv, Dogs<
+                        <li><strong>Buttons</strong>: Attack, Loot, Inv</li>
                     </ul>
                 </div>
             </div>
@@ -281,19 +278,25 @@
         </div>
     </div>
 
+    <script src="/socket.io/socket.io.js"></script>
     <script>
+        const socket = io();
+
         window.onload = function () {
             // Load Personal Best
             const myBest = localStorage.getItem('feral_personalBest') || "0";
             document.getElementById('pbDisplay').innerText = `${myBest}`;
-
-            // Load Local Device High Score (Instead of Online World Record)
-            const localHigh = localStorage.getItem('feral_localHighscore') || "0";
-            const localChamp = localStorage.getItem('feral_localChampion') || "None";
-
-            document.getElementById('wrDisplay').innerText = localHigh;
-            document.getElementById('wrHolder').innerText = `HELD BY: ${localChamp.toUpperCase()}`;
         };
+
+        socket.on('connect', () => {
+            // Request World Record
+            socket.emit('getLeaderboard');
+        });
+
+        socket.on('leaderboardData', (data) => {
+            document.getElementById('wrDisplay').innerText = data.days;
+            document.getElementById('wrHolder').innerText = `HELD BY: ${data.holder.toUpperCase()}`;
+        });
 
         function openTutorial() { document.getElementById('tutorialModal').style.display = 'block'; document.body.style.overflow = 'hidden'; }
         function closeTutorial() { document.getElementById('tutorialModal').style.display = 'none'; document.body.style.overflow = 'auto'; }
