@@ -19,10 +19,8 @@ if (urlCode && getEl('joinCode')) {
 
 function getUsername() {
     const inp = getEl('usernameInput');
-    let name = inp.value.trim() || localStorage.getItem('gameUsername');
-    if (!name || name === "Guest") {
-        name = 'Hunter_' + Math.floor(Math.random() * 100);
-    }
+    const name = inp.value.trim();
+    if (!name) return null; // Force null if empty
     localStorage.setItem('gameUsername', name);
     return name;
 }
@@ -35,13 +33,17 @@ function displayError(msg) {
 }
 
 function hostGame() {
-    socket.emit('hostGame', { username: getUsername() });
+    const name = getUsername();
+    if (!name) return displayError("Please enter a username.");
+    socket.emit('hostGame', { username: name });
 }
 
 function joinGame() {
+    const name = getUsername();
+    if (!name) return displayError("Please enter a username.");
     const code = getEl('joinCode').value.trim();
     if (code.length !== 4) return displayError('Code must be 4 digits.');
-    socket.emit('joinGame', code, { username: getUsername() });
+    socket.emit('joinGame', code, { username: name });
 }
 
 function startGame() {

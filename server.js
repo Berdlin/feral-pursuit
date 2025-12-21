@@ -23,7 +23,7 @@ app.get('/', (req, res) => {
 const MAP_SIZE = 1500;
 const WOLF_SPEED = 4.5;
 const DOG_SPEED = 6.0;
-const PLAYER_SPEED = 7;
+const PLAYER_SPEED = 7; // Synced with realgame.html
 
 const rooms = {};
 
@@ -72,18 +72,22 @@ function updateRoom(roomId) {
 
                 if (minDist < 35) {
                     if (target.username) {
-                        // It's a player
+                        // Player Hit
                         if (!target.invulnerable) {
                             target.hp -= wolf.dmg;
                             target.invulnerable = true;
                             setTimeout(() => { if (target) target.invulnerable = false; }, 1000);
-                            if (target.hp <= 0) { target.hp = 0; target.alive = false; checkGameOver(roomId); }
+                            if (target.hp <= 0) {
+                                target.hp = 0;
+                                target.alive = false;
+                                io.to(roomId).emit('alert', { msg: `${target.username} HAS FALLEN!`, color: "red" });
+                                checkGameOver(roomId);
+                            }
                         }
                     } else {
-                        // It's a dog
+                        // Dog Hit
                         target.hp -= wolf.dmg;
                         if (target.hp <= 0) {
-                            // Remove dead dog from owner
                             for (const pid in room.players) {
                                 room.players[pid].companions = room.players[pid].companions.filter(d => d !== target);
                             }
@@ -146,6 +150,7 @@ function checkVictory(roomId) {
         room.level++;
         room.status = 'collection';
         room.timerStart = Date.now();
+        // Heal survivors
         for (const pid in room.players) { if (room.players[pid].alive) room.players[pid].hp = Math.min(room.players[pid].maxHp, room.players[pid].hp + 20); }
         spawnEntities(room, room.level);
         io.to(roomId).emit('alert', { msg: `DAY ${room.level} STARTED`, color: "#00bfff" });
@@ -174,7 +179,7 @@ io.on('connection', (socket) => {
         }
     });
 
-    // Leaderboard
+    // Global Leaderboard
     socket.on('getLeaderboard', async () => {
         try {
             const { data } = await supabase.from('leaderboard').select('username, days_survived').order('days_survived', { ascending: false }).limit(1).single();
@@ -187,21 +192,19 @@ io.on('connection', (socket) => {
             const { data: currentMax } = await supabase.from('leaderboard').select('days_survived').order('days_survived', { ascending: false }).limit(1).single();
             if (data.days > (currentMax ? currentMax.days_survived : 0)) {
                 await supabase.from('leaderboard').insert([{ username: data.username, days_survived: data.days }]);
-                socket.broadcast.emit('newRecord', { holder: data.username, days: data.days });
+                // Broadcast to EVERYONE connected to the server
+                io.emit('newRecord', { holder: data.username, days: data.days });
             }
         } catch (e) { console.error(e); }
     });
 
-    // Join Logic
+    // Join/Host
     socket.on('joinGame', (code, data) => {
         if (rooms[code] && rooms[code].status !== 'over') {
             socket.join(code);
-            // Ensure data.username is used, fallback to "Hunter"
             const name = data && data.username ? data.username : "Hunter";
             rooms[code].players[socket.id] = createPlayer(socket.id, name);
-
             socket.emit('joinSuccess', code);
-
             if (rooms[code].status !== 'lobby') {
                 socket.emit('gameStarted');
             } else {
@@ -263,19 +266,59 @@ io.on('connection', (socket) => {
             room.chests.forEach(c => {
                 if (!c.opened && Math.hypot(p.x - c.x, p.y - c.y) < 60) {
                     c.opened = true;
-                    if (c.reward.type.includes('hp_loss') || c.reward.type.includes('curse')) {
+                    // Auto-Consume logic for bad items/traps
+                    if (c.reward.type.includes('hp_loss') || c.reward.type.includes('curse') || c.reward.type.includes('hp_half')) {
                         if (c.reward.type === 'hp_loss') p.hp += c.reward.val;
-                        if (c.reward.type === 'curse_dmg') p.dmg += c.reward.val;
-                        if (p.hp <= 0) { p.alive = false; checkGameOver(room.id); }
+                        else if (c.reward.type === 'hp_half') p.hp = Math.floor(p.hp * c.reward.val);
+                        else if (c.reward.type === 'curse_dmg') p.dmg += c.reward.val;
+
+                        socket.emit('alert', { msg: `TRAP: ${c.reward.name}!`, color: "red" });
+
+                        if (p.hp <= 0) {
+                            p.alive = false;
+                            io.to(room.id).emit('alert', { msg: `${p.username} DIED TO A TRAP!`, color: "red" });
+                            checkGameOver(room.id);
+                        }
                     } else {
+                        // Good item
                         p.inventory.push(c.reward);
+                        socket.emit('alert', { msg: "LOOT FOUND", color: "yellow" });
                     }
                 }
             });
         }
         else if (data.type === 'useItem') {
             const item = p.inventory[data.index];
-            if (item) { applyItemEffect(p, item); p.inventory.splice(data.index, 1); }
+            if (!item) return;
+
+            if (item.type === 'revive') {
+                // Check if there are dead players
+                const deadPlayers = Object.values(room.players).filter(pl => !pl.alive);
+                if (deadPlayers.length === 0) {
+                    socket.emit('alert', { msg: "NO DEAD CREW MEMBERS", color: "orange" });
+                } else {
+                    // Tell client to open selection modal
+                    socket.emit('openReviveModal', deadPlayers.map(pl => ({ id: pl.id, name: pl.username })));
+                }
+            } else {
+                applyItemEffect(p, item);
+                p.inventory.splice(data.index, 1);
+            }
+        }
+        else if (data.type === 'confirmRevive') {
+            // Player selected a target to revive
+            const itemIdx = p.inventory.findIndex(i => i.type === 'revive');
+            if (itemIdx === -1) return; // Anti-cheat
+
+            const target = room.players[data.targetId];
+            if (target && !target.alive) {
+                p.inventory.splice(itemIdx, 1); // Consume item
+                target.alive = true;
+                target.hp = 50; // Revive with half HP
+                target.x = p.x; // Spawn near reviver
+                target.y = p.y;
+                io.to(room.id).emit('alert', { msg: `${target.username} REVIVED BY ${p.username}!`, color: "#00ff00" });
+            }
         }
     });
 
@@ -291,13 +334,12 @@ io.on('connection', (socket) => {
         else if (data.action === 'setStats') { if (data.hp) p.hp = parseInt(data.hp); if (data.dmg) p.dmg = parseInt(data.dmg); if (data.speed) p.speed = parseInt(data.speed); }
     });
 
-    // DISCONNECT
+    // Disconnect
     socket.on('disconnect', () => {
         const roomCode = getRoomCode(socket);
         if (roomCode && rooms[roomCode]) {
             delete rooms[roomCode].players[socket.id];
-
-            // Reduced timeout to 500ms to instantly remove ghosts on refresh
+            // Remove ghosts quickly
             setTimeout(() => {
                 if (rooms[roomCode] && Object.keys(rooms[roomCode].players).length === 0) {
                     delete rooms[roomCode];
@@ -326,16 +368,35 @@ function spawnEntities(room, level) {
 }
 function generateReward(level) {
     const rand = Math.random() * 100;
-    if (rand < Math.max(10, 50 - (level * 2))) return [{ name: "Cursed Blade", type: "curse_dmg", val: -5, icon: "💀" }, { name: "Blood Debt", type: "hp_half", val: 0.5, icon: "🩸" }, { name: "Rotten Meat", type: "hp_loss", val: -25, icon: "🥩" }][Math.floor(Math.random() * 3)];
-    else if (rand < Math.max(10, 50 - (level * 2)) + 15) return { name: "Summon Dog", type: "potion", icon: "🐕" };
-    else return [{ name: "Steel Sword", type: "sword", val: 12, icon: "⚔️" }, { name: "Health Kit", type: "hp", val: 40, icon: "🍷" }, { name: "Plate Armor", type: "shield", val: 60, icon: "🛡️" }][Math.floor(Math.random() * 3)];
+
+    // Revive Totem: 10% chance (approx 5/50 chests)
+    if (rand < 10) {
+        return { name: "Revive Totem", type: "revive", icon: "✝️" };
+    }
+
+    // Bad Items (Traps)
+    let badChance = Math.max(10, 50 - (level * 2));
+    if (rand < 10 + badChance) {
+        return [{ name: "Cursed Blade", type: "curse_dmg", val: -5, icon: "💀" },
+        { name: "Blood Debt", type: "hp_half", val: 0.5, icon: "🩸" },
+        { name: "Rotten Meat", type: "hp_loss", val: -25, icon: "🥩" }][Math.floor(Math.random() * 3)];
+    }
+    // Dog Potion
+    else if (rand < 10 + badChance + 15) {
+        return { name: "Summon Dog", type: "potion", icon: "🐕" };
+    }
+    // Good Items
+    else {
+        return [{ name: "Steel Sword", type: "sword", val: 12, icon: "⚔️" },
+        { name: "Health Kit", type: "hp", val: 40, icon: "🍷" },
+        { name: "Plate Armor", type: "shield", val: 60, icon: "🛡️" }][Math.floor(Math.random() * 3)];
+    }
 }
 function applyItemEffect(p, item) {
     if (item.type === 'potion') p.companions.push({ x: p.x, y: p.y, hp: 120, maxHp: 120, dmg: 15, nextAttack: 0 });
     else if (item.type === 'hp') p.hp = Math.min(p.maxHp, p.hp + item.val);
     else if (item.type === 'shield') { p.maxHp += item.val; p.hp += item.val; }
     else if (item.type === 'sword') p.dmg += item.val;
-    else if (item.type === 'curse_dmg') p.dmg += item.val;
 }
 
 const PORT = process.env.PORT || 8080;
