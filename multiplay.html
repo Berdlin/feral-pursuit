@@ -6,7 +6,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>Feral Pursuit - Multiplayer</title>
     <style>
-        /* [KEEPING EXACT CSS STYLES] */
+        /* Keeping original CSS */
         body {
             font-family: 'Segoe UI', sans-serif;
             background-color: #080808;
@@ -87,7 +87,6 @@
             background-color: #ffd700;
         }
 
-        /* INVENTORY */
         .inventory-sidebar {
             width: 280px;
             background-color: #111;
@@ -118,7 +117,6 @@
             gap: 10px;
         }
 
-        /* ENTITIES */
         .icon {
             position: absolute;
             transform: translate(-50%, -50%);
@@ -186,7 +184,6 @@
             transform: translate(-50%, -50%);
         }
 
-        /* FX */
         .attack-range {
             position: absolute;
             border: 2px solid rgba(255, 255, 255, 0.5);
@@ -210,7 +207,6 @@
             }
         }
 
-        /* HUD */
         .hud-top {
             position: absolute;
             top: 20px;
@@ -231,7 +227,6 @@
             font-weight: bold;
         }
 
-        /* MOBILE CONTROLS */
         .mobile-controls-layer {
             position: absolute;
             top: 0;
@@ -299,7 +294,6 @@
             background: rgba(0, 191, 255, 0.7);
         }
 
-        /* OVERLAYS */
         #gameOverOverlay {
             position: fixed;
             top: 0;
@@ -466,7 +460,6 @@
         let keyStates = {};
         let isMobile = /Android|iPhone|iPad/i.test(navigator.userAgent);
 
-        // Joystick
         let joyActive = false;
         let joyData = { x: 0, y: 0 };
         const joyBase = document.getElementById('joystickZone');
@@ -476,13 +469,11 @@
 
         socket.on('connect', () => {
             myId = socket.id;
-            // Send auth again if needed, or rely on lobby transfer
             const u = localStorage.getItem('gameUsername') || "Guest";
             const p = localStorage.getItem('gamePass') || "";
             socket.emit('verifyIdentity', { username: u, password: p });
         });
 
-        // --- GAME LOOP RENDERING ---
         socket.on('gameStateUpdate', (state) => {
             renderGame(state);
             updateHUD(state);
@@ -514,7 +505,6 @@
             document.getElementById('gameOverOverlay').style.display = 'flex';
             document.getElementById('endTitle').innerText = data.win ? "VICTORY" : "DEFEAT";
             document.getElementById('endReason').innerText = `${data.reason} (Day ${data.days})`;
-            // Report Score
             const user = localStorage.getItem('gameUsername');
             if (user) socket.emit('reportScore', { username: user, days: data.days });
         });
@@ -523,7 +513,7 @@
             const layer = document.getElementById('entitiesLayer');
             layer.innerHTML = '';
 
-            // 1. Render Chests
+            // Chests
             state.chests.forEach(c => {
                 if (c.opened) return;
                 const el = document.createElement('div');
@@ -532,13 +522,13 @@
                 layer.appendChild(el);
             });
 
-            // 2. Render Wolves
+            // Wolves
             state.wolves.forEach(w => {
                 if (w.hp <= 0) return;
                 const el = document.createElement('div');
                 el.className = 'wolf-entity'; el.innerText = '🐺';
                 el.style.left = w.x + 'px'; el.style.top = w.y + 'px';
-                // Simple HP Bar
+                // HP Bar
                 const hpBar = document.createElement('div');
                 hpBar.style.cssText = `position:absolute; top:-10px; width:40px; height:4px; background:red;`;
                 hpBar.innerHTML = `<div style="width:${(w.hp / w.maxHp) * 100}%; height:100%; background:#0f0;"></div>`;
@@ -546,17 +536,15 @@
                 layer.appendChild(el);
             });
 
-            // 3. Render Players & Dogs
+            // Players
             for (const id in state.players) {
                 const p = state.players[id];
                 if (!p.alive) continue;
 
-                // Draw Player
                 const el = document.createElement('div');
                 el.className = 'icon';
                 el.style.left = p.x + 'px'; el.style.top = p.y + 'px';
 
-                // USE DISTINCT COLOR FROM SERVER
                 const bgColor = p.color || '#ff4500';
 
                 el.innerHTML = `
@@ -566,7 +554,6 @@
                 if (p.invulnerable) el.style.opacity = 0.5;
                 layer.appendChild(el);
 
-                // Draw Dogs
                 if (p.companions) {
                     p.companions.forEach(dog => {
                         const dEl = document.createElement('div');
@@ -578,7 +565,7 @@
                 }
             }
 
-            // 4. Camera Follow
+            // Camera
             if (state.players[myId]) {
                 const me = state.players[myId];
                 let camX = (document.getElementById('stage').clientWidth / 2) - me.x;
@@ -597,7 +584,6 @@
             document.getElementById('levelDisplay').innerText = state.day;
             document.getElementById('timeDisplay').innerText = state.status === 'collection' ? state.timer + 's' : 'HUNT';
 
-            // Update Inventory UI
             const invList = document.getElementById('invList');
             invList.innerHTML = '';
             p.inventory.forEach((item, index) => {
@@ -635,7 +621,6 @@
             return d;
         }
 
-        // --- CONTROLS ---
         window.addEventListener('keydown', (e) => {
             keyStates[e.key.toLowerCase()] = true;
             if (e.key.toLowerCase() === 'e') sendAction('loot');
@@ -650,7 +635,6 @@
         function sendAction(type) { socket.emit('playerAction', { type: type }); }
         function toggleInventory() { document.getElementById('inventoryPanel').classList.toggle('visible'); }
 
-        // MOVEMENT LOOP
         setInterval(() => {
             let dx = 0, dy = 0;
             if (keyStates['w']) dy--;
@@ -666,7 +650,6 @@
             }
         }, 1000 / 30);
 
-        // ADMIN FUNCTIONS
         function emitAdmin(action) {
             const data = { action: action };
             if (action === 'spawnDogs') data.val = parseInt(document.getElementById('admDogCount').value);
@@ -678,7 +661,6 @@
             socket.emit('adminCmd', data);
         }
 
-        // JOYSTICK
         joyBase.addEventListener('touchstart', (e) => { joyActive = true; updateJoy(e.touches[0]); }, { passive: false });
         joyBase.addEventListener('touchmove', (e) => { if (joyActive) { e.preventDefault(); updateJoy(e.touches[0]); } }, { passive: false });
         joyBase.addEventListener('touchend', () => { joyActive = false; joyKnob.style.transform = `translate(-50%,-50%)`; });

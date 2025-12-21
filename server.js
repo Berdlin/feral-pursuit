@@ -84,7 +84,7 @@ function updateRoom(roomId) {
                         if (!target.invulnerable) {
                             target.hp -= wolf.dmg;
                             target.invulnerable = true;
-                            // Reset invulnerability after 1s (handled by simple timestamp check in future, relying on loop for now is risky but simple)
+                            // Reset invulnerability after 1s
                             setTimeout(() => { if (target) target.invulnerable = false; }, 1000);
 
                             if (target.hp <= 0) {
@@ -189,12 +189,7 @@ function checkGameOver(roomId) {
 
     if (!anyAlive) {
         room.status = 'over';
-        // Check High Score for the room's best player (approximated by current level)
         io.to(roomId).emit('gameOver', { win: false, reason: "THE PACK CONSUMED ALL", days: room.level });
-
-        // Save score for Host (or best effort)
-        // In multiplayer, we just save the group score associated with the host's name or generic
-        // For now, client handles reporting individual scores via 'reportScore'
     }
 }
 
@@ -211,7 +206,7 @@ io.on('connection', (socket) => {
         }
     });
 
-    // --- LEADERBOARD LOGIC ---
+    // --- LEADERBOARD LOGIC (WORLD RECORD) ---
     socket.on('getLeaderboard', async () => {
         try {
             // Get the single highest record
@@ -237,7 +232,7 @@ io.on('connection', (socket) => {
         if (!username || !days) return;
 
         try {
-            // Check if this beats the global max
+            // Check current global max
             const { data: currentMax } = await supabase
                 .from('leaderboard')
                 .select('days_survived')
@@ -248,9 +243,8 @@ io.on('connection', (socket) => {
             const record = currentMax ? currentMax.days_survived : 0;
 
             if (days > record) {
-                // Insert new record
+                // New World Record
                 await supabase.from('leaderboard').insert([{ username: username, days_survived: days }]);
-                // Broadcast new record to everyone? Optional.
                 socket.broadcast.emit('newRecord', { holder: username, days: days });
             }
         } catch (e) {
@@ -324,7 +318,6 @@ io.on('connection', (socket) => {
             room.chests.forEach((c, i) => {
                 if (!c.opened && Math.hypot(p.x - c.x, p.y - c.y) < 60) {
                     c.opened = true;
-                    // Apply immediate effect or add to inventory
                     if (c.reward.type.includes('hp_loss') || c.reward.type.includes('curse')) {
                         // Traps apply immediately
                         if (c.reward.type === 'hp_loss') p.hp += c.reward.val;
@@ -349,10 +342,6 @@ io.on('connection', (socket) => {
     socket.on('adminCmd', (data) => {
         const room = getRoom(socket);
         if (!room) return;
-
-        // Simple security: Allow admin only if name matches (Optional, can be removed)
-        // const p = room.players[socket.id];
-        // if(p.username !== "beka_ei") return;
 
         if (data.action === 'spawnDogs') {
             const p = room.players[socket.id];
@@ -411,10 +400,8 @@ function createPlayer(id, name) {
 }
 
 function spawnEntities(room, level) {
-    // Wolves
     room.wolves = [];
     const count = (level === 1) ? 1 : Math.min(level + 2, 50);
-
     for (let i = 0; i < count; i++) {
         room.wolves.push({
             id: i,
@@ -423,11 +410,8 @@ function spawnEntities(room, level) {
             hp: 80 + (level * 20), maxHp: 80 + (level * 20), dmg: 5 + level
         });
     }
-
-    // Chests (Uses logic from realgame)
     room.chests = [];
-    const chestCount = 12;
-    for (let i = 0; i < chestCount; i++) {
+    for (let i = 0; i < 12; i++) {
         room.chests.push({
             x: Math.random() * (MAP_SIZE - 100) + 50,
             y: Math.random() * (MAP_SIZE - 100) + 50,
@@ -441,11 +425,10 @@ function generateReward(level) {
     const rand = Math.random() * 100;
     let badChance = Math.max(10, 50 - (level * 2));
 
-    // Mirroring realgame logic
     if (rand < badChance) {
         return [
             { name: "Cursed Blade", type: "curse_dmg", val: -5, icon: "💀" },
-            { name: "Blood Debt", type: "hp_half", val: 0.5, icon: "🩸" }, // Not implemented fully server side yet, treating as trap
+            { name: "Blood Debt", type: "hp_half", val: 0.5, icon: "🩸" },
             { name: "Rotten Meat", type: "hp_loss", val: -25, icon: "🥩" }
         ][Math.floor(Math.random() * 3)];
     } else if (rand < badChance + 15) {
