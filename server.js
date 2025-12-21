@@ -23,7 +23,7 @@ app.get('/', (req, res) => {
 const MAP_SIZE = 1500;
 const WOLF_SPEED = 4.5;
 const DOG_SPEED = 6.0;
-const PLAYER_SPEED = 7; // Synced with realgame.html
+const PLAYER_SPEED = 7;
 
 const rooms = {};
 
@@ -32,7 +32,7 @@ setInterval(() => {
     for (const roomId in rooms) {
         updateRoom(roomId);
     }
-}, 1000 / 30);
+}, 1000 / 30); // 30 Ticks Per Second
 
 function updateRoom(roomId) {
     const room = rooms[roomId];
@@ -192,7 +192,6 @@ io.on('connection', (socket) => {
             const { data: currentMax } = await supabase.from('leaderboard').select('days_survived').order('days_survived', { ascending: false }).limit(1).single();
             if (data.days > (currentMax ? currentMax.days_survived : 0)) {
                 await supabase.from('leaderboard').insert([{ username: data.username, days_survived: data.days }]);
-                // Broadcast to EVERYONE connected to the server
                 io.emit('newRecord', { holder: data.username, days: data.days });
             }
         } catch (e) { console.error(e); }
@@ -202,7 +201,8 @@ io.on('connection', (socket) => {
     socket.on('joinGame', (code, data) => {
         if (rooms[code] && rooms[code].status !== 'over') {
             socket.join(code);
-            const name = data && data.username ? data.username : "Hunter";
+            // Ensure unique name handling if needed, but primarily trust client
+            const name = data && data.username ? data.username : "Hunter_" + Math.floor(Math.random() * 1000);
             rooms[code].players[socket.id] = createPlayer(socket.id, name);
             socket.emit('joinSuccess', code);
             if (rooms[code].status !== 'lobby') {
@@ -219,7 +219,7 @@ io.on('connection', (socket) => {
         const code = Math.floor(1000 + Math.random() * 9000).toString();
         socket.join(code);
         rooms[code] = createRoom(code);
-        const name = data && data.username ? data.username : "Hunter";
+        const name = data && data.username ? data.username : "Hunter_" + Math.floor(Math.random() * 1000);
         rooms[code].players[socket.id] = createPlayer(socket.id, name);
         socket.emit('roomCreated', code);
         io.to(code).emit('lobbyUpdate', getPlayerNames(rooms[code]));
@@ -242,6 +242,7 @@ io.on('connection', (socket) => {
         if (!room) return;
         const p = room.players[socket.id];
         if (p && p.alive) {
+            // Server just trusts the vector, but limits speed
             p.x = Math.max(20, Math.min(MAP_SIZE - 20, p.x + data.dx * p.speed));
             p.y = Math.max(20, Math.min(MAP_SIZE - 20, p.y + data.dy * p.speed));
         }
@@ -266,7 +267,6 @@ io.on('connection', (socket) => {
             room.chests.forEach(c => {
                 if (!c.opened && Math.hypot(p.x - c.x, p.y - c.y) < 60) {
                     c.opened = true;
-                    // Auto-Consume logic for bad items/traps
                     if (c.reward.type.includes('hp_loss') || c.reward.type.includes('curse') || c.reward.type.includes('hp_half')) {
                         if (c.reward.type === 'hp_loss') p.hp += c.reward.val;
                         else if (c.reward.type === 'hp_half') p.hp = Math.floor(p.hp * c.reward.val);
@@ -280,7 +280,6 @@ io.on('connection', (socket) => {
                             checkGameOver(room.id);
                         }
                     } else {
-                        // Good item
                         p.inventory.push(c.reward);
                         socket.emit('alert', { msg: "LOOT FOUND", color: "yellow" });
                     }
@@ -292,12 +291,10 @@ io.on('connection', (socket) => {
             if (!item) return;
 
             if (item.type === 'revive') {
-                // Check if there are dead players
                 const deadPlayers = Object.values(room.players).filter(pl => !pl.alive);
                 if (deadPlayers.length === 0) {
                     socket.emit('alert', { msg: "NO DEAD CREW MEMBERS", color: "orange" });
                 } else {
-                    // Tell client to open selection modal
                     socket.emit('openReviveModal', deadPlayers.map(pl => ({ id: pl.id, name: pl.username })));
                 }
             } else {
@@ -306,16 +303,15 @@ io.on('connection', (socket) => {
             }
         }
         else if (data.type === 'confirmRevive') {
-            // Player selected a target to revive
             const itemIdx = p.inventory.findIndex(i => i.type === 'revive');
-            if (itemIdx === -1) return; // Anti-cheat
+            if (itemIdx === -1) return;
 
             const target = room.players[data.targetId];
             if (target && !target.alive) {
-                p.inventory.splice(itemIdx, 1); // Consume item
+                p.inventory.splice(itemIdx, 1);
                 target.alive = true;
-                target.hp = 50; // Revive with half HP
-                target.x = p.x; // Spawn near reviver
+                target.hp = 50;
+                target.x = p.x;
                 target.y = p.y;
                 io.to(room.id).emit('alert', { msg: `${target.username} REVIVED BY ${p.username}!`, color: "#00ff00" });
             }
@@ -339,7 +335,6 @@ io.on('connection', (socket) => {
         const roomCode = getRoomCode(socket);
         if (roomCode && rooms[roomCode]) {
             delete rooms[roomCode].players[socket.id];
-            // Remove ghosts quickly
             setTimeout(() => {
                 if (rooms[roomCode] && Object.keys(rooms[roomCode].players).length === 0) {
                     delete rooms[roomCode];
@@ -368,29 +363,11 @@ function spawnEntities(room, level) {
 }
 function generateReward(level) {
     const rand = Math.random() * 100;
-
-    // Revive Totem: 10% chance (approx 5/50 chests)
-    if (rand < 10) {
-        return { name: "Revive Totem", type: "revive", icon: "✝️" };
-    }
-
-    // Bad Items (Traps)
+    if (rand < 10) return { name: "Revive Totem", type: "revive", icon: "✝️" };
     let badChance = Math.max(10, 50 - (level * 2));
-    if (rand < 10 + badChance) {
-        return [{ name: "Cursed Blade", type: "curse_dmg", val: -5, icon: "💀" },
-        { name: "Blood Debt", type: "hp_half", val: 0.5, icon: "🩸" },
-        { name: "Rotten Meat", type: "hp_loss", val: -25, icon: "🥩" }][Math.floor(Math.random() * 3)];
-    }
-    // Dog Potion
-    else if (rand < 10 + badChance + 15) {
-        return { name: "Summon Dog", type: "potion", icon: "🐕" };
-    }
-    // Good Items
-    else {
-        return [{ name: "Steel Sword", type: "sword", val: 12, icon: "⚔️" },
-        { name: "Health Kit", type: "hp", val: 40, icon: "🍷" },
-        { name: "Plate Armor", type: "shield", val: 60, icon: "🛡️" }][Math.floor(Math.random() * 3)];
-    }
+    if (rand < 10 + badChance) return [{ name: "Cursed Blade", type: "curse_dmg", val: -5, icon: "💀" }, { name: "Blood Debt", type: "hp_half", val: 0.5, icon: "🩸" }, { name: "Rotten Meat", type: "hp_loss", val: -25, icon: "🥩" }][Math.floor(Math.random() * 3)];
+    else if (rand < 10 + badChance + 15) return { name: "Summon Dog", type: "potion", icon: "🐕" };
+    else return [{ name: "Steel Sword", type: "sword", val: 12, icon: "⚔️" }, { name: "Health Kit", type: "hp", val: 40, icon: "🍷" }, { name: "Plate Armor", type: "shield", val: 60, icon: "🛡️" }][Math.floor(Math.random() * 3)];
 }
 function applyItemEffect(p, item) {
     if (item.type === 'potion') p.companions.push({ x: p.x, y: p.y, hp: 120, maxHp: 120, dmg: 15, nextAttack: 0 });

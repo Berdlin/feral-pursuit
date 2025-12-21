@@ -6,7 +6,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>Feral Pursuit - Multiplayer</title>
     <style>
-        /* Base styles */
+        /* BASE STYLES */
         body {
             font-family: 'Segoe UI', sans-serif;
             background-color: #080808;
@@ -80,58 +80,14 @@
             background-color: #ffd700;
         }
 
-        /* Inventory */
-        .inventory-sidebar {
-            width: 280px;
-            background-color: #111;
-            border-right: 2px solid #333;
-            height: 100vh;
-            position: absolute;
-            left: 0;
-            top: 0;
-            transform: translateX(-100%);
-            transition: transform 0.3s ease-in-out;
-            z-index: 100;
-            display: flex;
-            flex-direction: column;
-        }
-
-        .inventory-sidebar.visible {
-            transform: translateX(0);
-        }
-
-        .inv-item {
-            background: #222;
-            margin: 8px;
-            padding: 10px;
-            border: 1px solid #333;
-            cursor: pointer;
-            display: flex;
-            align-items: center;
-            gap: 10px;
-        }
-
-        .key-hint {
-            background: #ff4500;
-            color: #000;
-            font-weight: bold;
-            width: 20px;
-            height: 20px;
-            border-radius: 3px;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            font-size: 0.8em;
-        }
-
-        /* Entities */
+        /* ENTITIES & VISUALS */
         .icon {
             position: absolute;
             transform: translate(-50%, -50%);
             display: flex;
             flex-direction: column;
             align-items: center;
-            transition: top 0.1s linear, left 0.1s linear;
+            pointer-events: none;
         }
 
         .player-icon {
@@ -193,7 +149,7 @@
             transform: translate(-50%, -50%);
         }
 
-        /* UI */
+        /* HUD & UI */
         .hud-top {
             position: absolute;
             top: 20px;
@@ -232,7 +188,127 @@
             border: 2px solid transparent;
         }
 
-        /* Mobile */
+        .inventory-sidebar {
+            width: 280px;
+            background-color: #111;
+            border-right: 2px solid #333;
+            height: 100vh;
+            position: absolute;
+            left: 0;
+            top: 0;
+            transform: translateX(-100%);
+            transition: transform 0.3s ease-in-out;
+            z-index: 100;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .inventory-sidebar.visible {
+            transform: translateX(0);
+        }
+
+        .inv-item {
+            background: #222;
+            margin: 8px;
+            padding: 10px;
+            border: 1px solid #333;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .key-hint {
+            background: #ff4500;
+            color: #000;
+            font-weight: bold;
+            width: 20px;
+            height: 20px;
+            border-radius: 3px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            font-size: 0.8em;
+        }
+
+        /* SCROLLABLE MODALS */
+        #dogStatsModal {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            width: 300px;
+            background: rgba(10, 15, 30, 0.95);
+            border: 2px solid #00bfff;
+            border-radius: 10px;
+            padding: 20px;
+            color: white;
+            z-index: 150;
+            display: none;
+            box-shadow: 0 0 20px rgba(0, 191, 255, 0.3);
+        }
+
+        #dogStatsContent {
+            max-height: 200px;
+            overflow-y: auto;
+            padding-right: 5px;
+        }
+
+        /* SCROLL FIXED */
+
+        #adminPanel {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            width: 320px;
+            background: rgba(0, 0, 0, 0.95);
+            border: 2px solid #00ff00;
+            padding: 20px;
+            z-index: 300;
+            display: none;
+            color: #00ff00;
+            font-family: monospace;
+            max-height: 80vh;
+            overflow-y: auto;
+        }
+
+        /* SCROLL FIXED */
+
+        #reviveModal {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.8);
+            z-index: 190;
+            display: none;
+            justify-content: center;
+            align-items: center;
+        }
+
+        .revive-content {
+            background: #111;
+            border: 2px solid #00ff00;
+            padding: 20px;
+            width: 300px;
+            text-align: center;
+            border-radius: 8px;
+        }
+
+        .revive-btn {
+            display: block;
+            width: 100%;
+            padding: 10px;
+            margin: 5px 0;
+            background: #003300;
+            color: white;
+            border: 1px solid #00ff00;
+            cursor: pointer;
+        }
+
+        /* MOBILE CONTROLS */
         .mobile-controls-layer {
             position: absolute;
             top: 0;
@@ -300,17 +376,6 @@
             transform: scale(0.9);
         }
 
-        #btnAttack {
-            width: 90px;
-            height: 90px;
-            background: rgba(200, 0, 0, 0.7);
-        }
-
-        #btnLoot {
-            background: rgba(0, 191, 255, 0.7);
-        }
-
-        /* Modals */
         #gameOverOverlay {
             position: fixed;
             top: 0;
@@ -325,22 +390,6 @@
             z-index: 200;
         }
 
-        #dogStatsModal {
-            position: absolute;
-            top: 50%;
-            left: 50%;
-            transform: translate(-50%, -50%);
-            width: 300px;
-            background: rgba(10, 15, 30, 0.95);
-            border: 2px solid #00bfff;
-            border-radius: 10px;
-            padding: 20px;
-            color: white;
-            z-index: 150;
-            display: none;
-            box-shadow: 0 0 20px rgba(0, 191, 255, 0.3);
-        }
-
         .close-modal-btn {
             position: absolute;
             top: 5px;
@@ -350,86 +399,6 @@
             color: #ff4500;
             font-size: 1.5em;
             cursor: pointer;
-            font-weight: bold;
-        }
-
-        #reviveModal {
-            position: fixed;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            background: rgba(0, 0, 0, 0.8);
-            z-index: 190;
-            display: none;
-            justify-content: center;
-            align-items: center;
-        }
-
-        .revive-content {
-            background: #111;
-            border: 2px solid #00ff00;
-            padding: 20px;
-            width: 300px;
-            text-align: center;
-            border-radius: 8px;
-        }
-
-        .revive-btn {
-            display: block;
-            width: 100%;
-            padding: 10px;
-            margin: 5px 0;
-            background: #003300;
-            color: white;
-            border: 1px solid #00ff00;
-            cursor: pointer;
-        }
-
-        .revive-btn:hover {
-            background: #005500;
-        }
-
-        #adminPanel {
-            position: absolute;
-            top: 50%;
-            left: 50%;
-            transform: translate(-50%, -50%);
-            width: 320px;
-            background: rgba(0, 0, 0, 0.95);
-            border: 2px solid #00ff00;
-            padding: 20px;
-            z-index: 300;
-            display: none;
-            color: #00ff00;
-            font-family: monospace;
-        }
-
-        .admin-row {
-            margin: 10px 0;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-        }
-
-        .admin-input {
-            width: 60px;
-            background: #222;
-            border: 1px solid #00ff00;
-            color: #fff;
-            padding: 5px;
-            text-align: center;
-        }
-
-        .admin-btn {
-            width: 100%;
-            background: #003300;
-            border: 1px solid #00ff00;
-            color: #fff;
-            padding: 8px;
-            cursor: pointer;
-            margin-top: 10px;
-            font-weight: bold;
         }
     </style>
 </head>
@@ -497,7 +466,6 @@
                 </div>
                 <div id="entitiesLayer"></div>
             </div>
-
             <div class="mobile-controls-layer" id="mobileLayer">
                 <div id="joystickZone">
                     <div id="joystickKnob"></div>
@@ -536,26 +504,26 @@
         const joyBase = document.getElementById('joystickZone');
         const joyKnob = document.getElementById('joystickKnob');
 
+        // Interpolation Stores
+        let localEntities = {}; // Stores { x, y } for smoothing
+
         if (isMobile) document.getElementById('mobileLayer').style.display = 'block';
 
         socket.on('connect', () => {
             myId = socket.id;
             let u = localStorage.getItem('gameUsername');
-            if (!u || u === "Guest") {
-                alert("Username required!");
-                window.location.href = 'gamelobby.html';
-                return;
-            }
             const code = localStorage.getItem('gameRoomCode');
             const p = localStorage.getItem('gamePass') || "";
-            socket.emit('verifyIdentity', { username: u, password: p });
 
+            // Re-verify on page load to prevent mismatched sessions
+            socket.emit('verifyIdentity', { username: u, password: p });
             if (code) socket.emit('joinGame', code, { username: u });
             else window.location.href = 'gamelobby.html';
         });
 
         socket.on('gameStateUpdate', (state) => {
-            renderGame(state);
+            // Instead of instantly rendering, we update targets for the render loop
+            updateLocalEntities(state);
             updateHUD(state);
             updateMinimap(state);
             updateDogModal(state);
@@ -568,10 +536,7 @@
                 const btn = document.createElement('button');
                 btn.className = 'revive-btn';
                 btn.innerText = `REVIVE: ${p.name}`;
-                btn.onclick = () => {
-                    socket.emit('playerAction', { type: 'confirmRevive', targetId: p.id });
-                    closeRevive();
-                };
+                btn.onclick = () => { socket.emit('playerAction', { type: 'confirmRevive', targetId: p.id }); closeRevive(); };
                 list.appendChild(btn);
             });
             document.getElementById('reviveModal').style.display = 'flex';
@@ -606,61 +571,119 @@
             if (user) socket.emit('reportScore', { username: user, days: data.days });
         });
 
-        function renderGame(state) {
+        // --- INTERPOLATION & RENDER LOGIC ---
+        function updateLocalEntities(state) {
+            // Syncs server state to local targets
             const layer = document.getElementById('entitiesLayer');
-            layer.innerHTML = '';
 
+            // Chests (Static, no lerp needed really, but redraw for opened status)
+            // Ideally optimize this, but for now:
+            const existingChests = document.querySelectorAll('.chest');
+            existingChests.forEach(e => e.remove());
             state.chests.forEach(c => {
-                if (c.opened) return;
-                const el = document.createElement('div');
-                el.className = 'chest'; el.innerText = '📦';
-                el.style.left = c.x + 'px'; el.style.top = c.y + 'px';
-                layer.appendChild(el);
+                if (!c.opened) {
+                    const el = document.createElement('div');
+                    el.className = 'chest'; el.innerText = '📦';
+                    el.style.left = c.x + 'px'; el.style.top = c.y + 'px';
+                    layer.appendChild(el);
+                }
             });
 
+            // Wolves
             state.wolves.forEach(w => {
-                if (w.hp <= 0) return;
-                const el = document.createElement('div');
-                el.className = 'wolf-entity'; el.innerText = '🐺';
-                el.style.left = w.x + 'px'; el.style.top = w.y + 'px';
-                const hpBar = document.createElement('div');
-                hpBar.style.cssText = `position:absolute; top:-10px; width:40px; height:4px; background:red;`;
-                hpBar.innerHTML = `<div style="width:${(w.hp / w.maxHp) * 100}%; height:100%; background:#0f0;"></div>`;
-                el.appendChild(hpBar);
-                layer.appendChild(el);
+                if (w.hp <= 0) {
+                    const el = document.getElementById(`wolf-${w.id}`);
+                    if (el) el.remove();
+                    return;
+                }
+                let el = document.getElementById(`wolf-${w.id}`);
+                if (!el) {
+                    el = document.createElement('div');
+                    el.id = `wolf-${w.id}`; el.className = 'wolf-entity'; el.innerText = '🐺';
+                    el.innerHTML += `<div class="bar-container" style="position:absolute; top:-10px; width:40px; height:4px; background:red;"><div id="wolf-hp-${w.id}" style="width:100%; height:100%; background:#0f0;"></div></div>`;
+                    layer.appendChild(el);
+                    // Init local pos
+                    localEntities[`w-${w.id}`] = { x: w.x, y: w.y };
+                }
+                // Update Target for Smoothing
+                localEntities[`w-${w.id}`].targetX = w.x;
+                localEntities[`w-${w.id}`].targetY = w.y;
+
+                // Update HP Bar immediately
+                const bar = document.getElementById(`wolf-hp-${w.id}`);
+                if (bar) bar.style.width = ((w.hp / w.maxHp) * 100) + '%';
             });
 
+            // Players
             for (const id in state.players) {
                 const p = state.players[id];
-                if (!p.alive) continue;
+                if (!p.alive) {
+                    const el = document.getElementById(`p-${id}`);
+                    if (el) el.remove();
+                    continue;
+                }
+                let el = document.getElementById(`p-${id}`);
+                if (!el) {
+                    el = document.createElement('div');
+                    el.id = `p-${id}`; el.className = 'icon';
+                    el.innerHTML = `<div class="name-tag">${p.username}</div><div class="player-icon" style="background:${p.color || '#ff4500'};">🏃</div>`;
+                    layer.appendChild(el);
+                    localEntities[`p-${id}`] = { x: p.x, y: p.y };
+                }
+                localEntities[`p-${id}`].targetX = p.x;
+                localEntities[`p-${id}`].targetY = p.y;
 
-                const el = document.createElement('div');
-                el.className = 'icon';
-                el.style.left = p.x + 'px'; el.style.top = p.y + 'px';
-                el.innerHTML = `<div class="name-tag">${p.username}</div><div class="player-icon" style="background:${p.color || '#ff4500'};">🏃</div>`;
-                if (p.invulnerable) el.style.opacity = 0.5;
-                layer.appendChild(el);
+                if (p.invulnerable) el.style.opacity = 0.5; else el.style.opacity = 1;
 
+                // Dogs
                 if (p.companions) {
-                    p.companions.forEach(dog => {
-                        const dEl = document.createElement('div');
-                        dEl.className = 'friendly-wolf';
-                        dEl.innerText = '🐕';
-                        dEl.style.left = dog.x + 'px'; dEl.style.top = dog.y + 'px';
-                        layer.appendChild(dEl);
+                    p.companions.forEach((dog, idx) => {
+                        let dEl = document.getElementById(`d-${id}-${idx}`);
+                        if (!dEl) {
+                            dEl = document.createElement('div');
+                            dEl.id = `d-${id}-${idx}`; dEl.className = 'friendly-wolf'; dEl.innerText = '🐕';
+                            layer.appendChild(dEl);
+                            localEntities[`d-${id}-${idx}`] = { x: dog.x, y: dog.y };
+                        }
+                        localEntities[`d-${id}-${idx}`].targetX = dog.x;
+                        localEntities[`d-${id}-${idx}`].targetY = dog.y;
                     });
                 }
             }
+        }
 
-            if (state.players[myId] && state.players[myId].alive) {
-                const me = state.players[myId];
+        // --- RENDER LOOP (The "No Lag" Fix) ---
+        function renderLoop() {
+            // Linear Interpolation (Lerp) factor (0.1 = smooth, 0.5 = snappy)
+            const alpha = 0.15;
+
+            for (const key in localEntities) {
+                const ent = localEntities[key];
+                const el = document.getElementById(key);
+
+                if (el && ent.targetX !== undefined) {
+                    // Smooth move
+                    ent.x += (ent.targetX - ent.x) * alpha;
+                    ent.y += (ent.targetY - ent.y) * alpha;
+                    el.style.left = ent.x + 'px';
+                    el.style.top = ent.y + 'px';
+                }
+            }
+
+            // Camera follow ME
+            if (myId && localEntities[`p-${myId}`]) {
+                const me = localEntities[`p-${myId}`];
                 let camX = (document.getElementById('stage').clientWidth / 2) - me.x;
                 let camY = (document.getElementById('stage').clientHeight / 2) - me.y;
                 camX = Math.min(0, Math.max(camX, document.getElementById('stage').clientWidth - 1500));
                 camY = Math.min(0, Math.max(camY, document.getElementById('stage').clientHeight - 1500));
                 document.getElementById('mapViewport').style.transform = `translate3d(${camX}px, ${camY}px, 0)`;
             }
+
+            requestAnimationFrame(renderLoop);
         }
+        requestAnimationFrame(renderLoop);
+
 
         function updateHUD(state) {
             const p = state.players[myId];
@@ -732,14 +755,11 @@
             const k = e.key.toLowerCase();
             const map = { 'w': 'w', 'a': 'a', 's': 's', 'd': 'd', 'arrowup': 'w', 'arrowleft': 'a', 'arrowdown': 's', 'arrowright': 'd' };
             if (map[k]) keyStates[map[k]] = true;
-
             if (k === 'e') sendAction('loot');
             if (e.key === ' ') sendAction('attack');
             if (k === 'q') toggleInventory();
             if (k === 'o') toggleDogStats();
             if (k === 'a' && e.shiftKey) document.getElementById('adminPanel').style.display = 'block';
-
-            // Item hotkeys 1-9
             if (e.key >= '1' && e.key <= '9') {
                 socket.emit('playerAction', { type: 'useItem', index: parseInt(e.key) - 1 });
             }
@@ -751,7 +771,6 @@
             if (map[k]) keyStates[map[k]] = false;
         });
 
-        // Joystick
         joyBase.addEventListener('touchstart', (e) => { joyActive = true; updateJoy(e.touches[0]); }, { passive: false });
         joyBase.addEventListener('touchmove', (e) => { if (joyActive) { e.preventDefault(); updateJoy(e.touches[0]); } }, { passive: false });
         joyBase.addEventListener('touchend', () => { joyActive = false; joyKnob.style.transform = `translate(-50%,-50%)`; joyData = { x: 0, y: 0 }; });

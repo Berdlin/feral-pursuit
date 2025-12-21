@@ -19,8 +19,9 @@ if (urlCode && getEl('joinCode')) {
 
 function getUsername() {
     const inp = getEl('usernameInput');
+    // FORCE INPUT CHECK. If empty, return null to force user entry.
     const name = inp.value.trim();
-    if (!name) return null; // Force null if empty
+    if (!name) return null;
     localStorage.setItem('gameUsername', name);
     return name;
 }
@@ -34,13 +35,13 @@ function displayError(msg) {
 
 function hostGame() {
     const name = getUsername();
-    if (!name) return displayError("Please enter a username.");
+    if (!name) return displayError("ENTER USERNAME FIRST");
     socket.emit('hostGame', { username: name });
 }
 
 function joinGame() {
     const name = getUsername();
-    if (!name) return displayError("Please enter a username.");
+    if (!name) return displayError("ENTER USERNAME FIRST");
     const code = getEl('joinCode').value.trim();
     if (code.length !== 4) return displayError('Code must be 4 digits.');
     socket.emit('joinGame', code, { username: name });
