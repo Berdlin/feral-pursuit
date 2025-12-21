@@ -19,8 +19,10 @@ if (urlCode && getEl('joinCode')) {
 
 function getUsername() {
     const inp = getEl('usernameInput');
-    const name = inp.value.trim() || localStorage.getItem('gameUsername');
-    if (!name) return 'Hunter_' + Math.floor(Math.random() * 100);
+    let name = inp.value.trim() || localStorage.getItem('gameUsername');
+    if (!name || name === "Guest") {
+        name = 'Hunter_' + Math.floor(Math.random() * 100);
+    }
     localStorage.setItem('gameUsername', name);
     return name;
 }

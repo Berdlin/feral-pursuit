@@ -6,7 +6,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>Feral Pursuit - Multiplayer</title>
     <style>
-        /* Exact previous styles */
+        /* [PRESERVING STYLE FROM ORIGINAL] */
         body {
             font-family: 'Segoe UI', sans-serif;
             background-color: #080808;
@@ -123,6 +123,7 @@
             display: flex;
             flex-direction: column;
             align-items: center;
+            transition: top 0.1s linear, left 0.1s linear;
         }
 
         .player-icon {
@@ -248,6 +249,7 @@
             border: 2px solid rgba(255, 255, 255, 0.2);
             border-radius: 50%;
             pointer-events: auto;
+            touch-action: none;
         }
 
         #joystickKnob {
@@ -256,9 +258,10 @@
             left: 50%;
             width: 50px;
             height: 50px;
-            background: #ff4500;
+            background: rgba(255, 69, 0, 0.8);
             border-radius: 50%;
             transform: translate(-50%, -50%);
+            pointer-events: none;
         }
 
         .action-btn-group {
@@ -278,10 +281,18 @@
             background: rgba(50, 50, 50, 0.9);
             border: 2px solid #fff;
             color: #fff;
-            font-size: 1.5em;
+            font-weight: bold;
+            font-size: 1.2em;
             display: flex;
             justify-content: center;
             align-items: center;
+            user-select: none;
+            touch-action: manipulation;
+        }
+
+        .mob-btn:active {
+            background: #ff4500;
+            transform: scale(0.9);
         }
 
         #btnAttack {
@@ -379,6 +390,49 @@
             border-color: #ff0000;
             color: #ff0000;
         }
+
+        /* --- ADDED DOG STATS MODAL --- */
+        #dogStatsModal {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            width: 300px;
+            background: rgba(10, 15, 30, 0.95);
+            border: 2px solid #00bfff;
+            border-radius: 10px;
+            padding: 20px;
+            color: white;
+            z-index: 150;
+            display: none;
+            box-shadow: 0 0 20px rgba(0, 191, 255, 0.3);
+        }
+
+        #dogStatsContent {
+            max-height: 250px;
+            overflow-y: auto;
+            margin-bottom: 10px;
+            padding-right: 5px;
+        }
+
+        .close-modal-btn {
+            position: absolute;
+            top: 5px;
+            right: 10px;
+            background: none;
+            border: none;
+            color: #ff4500;
+            font-size: 1.5em;
+            cursor: pointer;
+            font-weight: bold;
+        }
+
+        .dog-stat-row {
+            border-bottom: 1px solid #444;
+            padding: 10px 0;
+            display: flex;
+            justify-content: space-between;
+        }
     </style>
 </head>
 
@@ -398,6 +452,13 @@
         </div>
 
         <div id="topAlertBox"></div>
+
+        <div id="dogStatsModal">
+            <button class="close-modal-btn" onclick="toggleDogStats()">X</button>
+            <h2 style="text-align:center; margin-top:0; color:#00bfff;">Companion Pack</h2>
+            <div id="dogStatsContent"></div>
+            <p style="text-align:center; font-size:0.8em; color:#888;">Press 'O' or 🐕 to close</p>
+        </div>
 
         <div id="adminPanel">
             <h2 style="color:#00ff00; border-bottom:1px solid #00ff00; text-align:center; margin-top:0;">ADMIN CONSOLE
@@ -436,6 +497,8 @@
                 <div class="action-btn-group">
                     <div style="display:flex; flex-direction:column; gap:10px; margin-bottom:5px;">
                         <div class="mob-btn" style="width:50px; height:50px; font-size:0.8em; background:#333;"
+                            ontouchstart="toggleDogStats()">🐕</div>
+                        <div class="mob-btn" style="width:50px; height:50px; font-size:0.8em; background:#333;"
                             ontouchstart="toggleInventory()">INV</div>
                     </div>
                     <div class="mob-btn" id="btnLoot" ontouchstart="sendAction('loot')">👋</div>
@@ -460,6 +523,7 @@
         let keyStates = {};
         let isMobile = /Android|iPhone|iPad/i.test(navigator.userAgent);
 
+        // Joystick Vars
         let joyActive = false;
         let joyData = { x: 0, y: 0 };
         const joyBase = document.getElementById('joystickZone');
@@ -467,22 +531,23 @@
 
         if (isMobile) document.getElementById('mobileLayer').style.display = 'block';
 
-        // --- CRITICAL FIX: JOIN LOGIC ---
         socket.on('connect', () => {
             myId = socket.id;
-            const u = localStorage.getItem('gameUsername') || "Guest";
-            const code = localStorage.getItem('gameRoomCode');
+            // Handle username strictly
+            let u = localStorage.getItem('gameUsername');
+            if (!u || u === "Guest") {
+                u = prompt("Identify yourself (Username):") || "Anonymous";
+                localStorage.setItem('gameUsername', u);
+            }
 
-            // Send Auth
+            const code = localStorage.getItem('gameRoomCode');
             const p = localStorage.getItem('gamePass') || "";
             socket.emit('verifyIdentity', { username: u, password: p });
 
-            // ATTEMPT REJOIN USING SAVED CODE
             if (code) {
-                console.log("Attempting to join running game:", code);
+                console.log("Attempting to join:", code);
                 socket.emit('joinGame', code, { username: u });
             } else {
-                console.log("No room code found. Returning to lobby.");
                 window.location.href = 'gamelobby.html';
             }
         });
@@ -491,6 +556,16 @@
             renderGame(state);
             updateHUD(state);
             updateMinimap(state);
+
+            // Update Dog Stats Modal if open
+            if (document.getElementById('dogStatsModal').style.display === 'block' && state.players[myId]) {
+                const dogs = state.players[myId].companions || [];
+                const content = document.getElementById('dogStatsContent');
+                content.innerHTML = dogs.length ? '' : '<div style="text-align:center; padding:20px;">No dogs active.</div>';
+                dogs.forEach((dog, i) => {
+                    content.innerHTML += `<div class="dog-stat-row"><span>Dog ${i + 1}</span><span>HP: ${Math.floor(dog.hp)}</span></div>`;
+                });
+            }
         });
 
         socket.on('alert', (data) => {
@@ -526,6 +601,7 @@
             const layer = document.getElementById('entitiesLayer');
             layer.innerHTML = '';
 
+            // Chests
             state.chests.forEach(c => {
                 if (c.opened) return;
                 const el = document.createElement('div');
@@ -534,6 +610,7 @@
                 layer.appendChild(el);
             });
 
+            // Wolves
             state.wolves.forEach(w => {
                 if (w.hp <= 0) return;
                 const el = document.createElement('div');
@@ -546,6 +623,7 @@
                 layer.appendChild(el);
             });
 
+            // Players
             for (const id in state.players) {
                 const p = state.players[id];
                 if (!p.alive) continue;
@@ -628,14 +706,29 @@
             return d;
         }
 
+        function toggleDogStats() {
+            const modal = document.getElementById('dogStatsModal');
+            modal.style.display = (modal.style.display === 'block') ? 'none' : 'block';
+        }
+
         window.addEventListener('keydown', (e) => {
-            keyStates[e.key.toLowerCase()] = true;
-            if (e.key.toLowerCase() === 'e') sendAction('loot');
+            const k = e.key.toLowerCase();
+            // Map keys
+            const map = { 'w': 'w', 'a': 'a', 's': 's', 'd': 'd', 'arrowup': 'w', 'arrowleft': 'a', 'arrowdown': 's', 'arrowright': 'd' };
+            if (map[k]) keyStates[map[k]] = true;
+
+            if (k === 'e') sendAction('loot');
             if (e.key === ' ') sendAction('attack');
-            if (e.key.toLowerCase() === 'q') toggleInventory();
-            if (e.key.toLowerCase() === 'a' && e.shiftKey) { document.getElementById('adminPanel').style.display = 'block'; }
+            if (k === 'q') toggleInventory();
+            if (k === 'o') toggleDogStats();
+            if (k === 'a' && e.shiftKey) { document.getElementById('adminPanel').style.display = 'block'; }
         });
-        window.addEventListener('keyup', (e) => keyStates[e.key.toLowerCase()] = false);
+
+        window.addEventListener('keyup', (e) => {
+            const k = e.key.toLowerCase();
+            const map = { 'w': 'w', 'a': 'a', 's': 's', 'd': 'd', 'arrowup': 'w', 'arrowleft': 'a', 'arrowdown': 's', 'arrowright': 'd' };
+            if (map[k]) keyStates[map[k]] = false;
+        });
 
         function sendAction(type) { socket.emit('playerAction', { type: type }); }
         function toggleInventory() { document.getElementById('inventoryPanel').classList.toggle('visible'); }
@@ -646,7 +739,13 @@
             if (keyStates['s']) dy++;
             if (keyStates['a']) dx--;
             if (keyStates['d']) dx++;
-            if (joyActive) { dx = joyData.x; dy = joyData.y; }
+
+            // Joystick override
+            if (joyActive) {
+                dx = joyData.x;
+                dy = joyData.y;
+            }
+
             if (dx !== 0 || dy !== 0) {
                 const len = Math.sqrt(dx * dx + dy * dy);
                 if (len > 0) socket.emit('playerMove', { dx: dx / len, dy: dy / len });
@@ -660,9 +759,11 @@
             socket.emit('adminCmd', data);
         }
 
+        // Joystick Event Listeners
         joyBase.addEventListener('touchstart', (e) => { joyActive = true; updateJoy(e.touches[0]); }, { passive: false });
         joyBase.addEventListener('touchmove', (e) => { if (joyActive) { e.preventDefault(); updateJoy(e.touches[0]); } }, { passive: false });
-        joyBase.addEventListener('touchend', () => { joyActive = false; joyKnob.style.transform = `translate(-50%,-50%)`; });
+        joyBase.addEventListener('touchend', () => { joyActive = false; joyKnob.style.transform = `translate(-50%,-50%)`; joyData = { x: 0, y: 0 }; });
+
         function updateJoy(touch) {
             const rect = joyBase.getBoundingClientRect();
             let dx = touch.clientX - (rect.left + rect.width / 2);

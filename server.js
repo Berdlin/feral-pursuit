@@ -72,6 +72,7 @@ function updateRoom(roomId) {
 
                 if (minDist < 35) {
                     if (target.username) {
+                        // It's a player
                         if (!target.invulnerable) {
                             target.hp -= wolf.dmg;
                             target.invulnerable = true;
@@ -79,9 +80,13 @@ function updateRoom(roomId) {
                             if (target.hp <= 0) { target.hp = 0; target.alive = false; checkGameOver(roomId); }
                         }
                     } else {
+                        // It's a dog
                         target.hp -= wolf.dmg;
                         if (target.hp <= 0) {
-                            for (const pid in room.players) room.players[pid].companions = room.players[pid].companions.filter(d => d !== target);
+                            // Remove dead dog from owner
+                            for (const pid in room.players) {
+                                room.players[pid].companions = room.players[pid].companions.filter(d => d !== target);
+                            }
                         }
                     }
                 }
@@ -187,18 +192,17 @@ io.on('connection', (socket) => {
         } catch (e) { console.error(e); }
     });
 
-    // --- CRITICAL FIX: JOIN LOGIC ---
+    // Join Logic
     socket.on('joinGame', (code, data) => {
-        // ALLOW JOINING IF GAME IS RUNNING (status != 'over')
         if (rooms[code] && rooms[code].status !== 'over') {
             socket.join(code);
-            // Create new player entry for this socket
-            rooms[code].players[socket.id] = createPlayer(socket.id, data.username);
+            // Ensure data.username is used, fallback to "Hunter"
+            const name = data && data.username ? data.username : "Hunter";
+            rooms[code].players[socket.id] = createPlayer(socket.id, name);
 
             socket.emit('joinSuccess', code);
 
             if (rooms[code].status !== 'lobby') {
-                // If game already running, ensure client knows
                 socket.emit('gameStarted');
             } else {
                 io.to(code).emit('lobbyUpdate', getPlayerNames(rooms[code]));
@@ -212,7 +216,8 @@ io.on('connection', (socket) => {
         const code = Math.floor(1000 + Math.random() * 9000).toString();
         socket.join(code);
         rooms[code] = createRoom(code);
-        rooms[code].players[socket.id] = createPlayer(socket.id, data.username);
+        const name = data && data.username ? data.username : "Hunter";
+        rooms[code].players[socket.id] = createPlayer(socket.id, name);
         socket.emit('roomCreated', code);
         io.to(code).emit('lobbyUpdate', getPlayerNames(rooms[code]));
     });
@@ -286,20 +291,19 @@ io.on('connection', (socket) => {
         else if (data.action === 'setStats') { if (data.hp) p.hp = parseInt(data.hp); if (data.dmg) p.dmg = parseInt(data.dmg); if (data.speed) p.speed = parseInt(data.speed); }
     });
 
-    // --- CRITICAL FIX: GRACEFUL DISCONNECT ---
+    // DISCONNECT
     socket.on('disconnect', () => {
         const roomCode = getRoomCode(socket);
         if (roomCode && rooms[roomCode]) {
-            // Remove player from list
             delete rooms[roomCode].players[socket.id];
 
-            // Wait 5 seconds before destroying room to allow reload/redirect
+            // Reduced timeout to 500ms to instantly remove ghosts on refresh
             setTimeout(() => {
                 if (rooms[roomCode] && Object.keys(rooms[roomCode].players).length === 0) {
                     delete rooms[roomCode];
                     console.log(`Room ${roomCode} destroyed (empty)`);
                 }
-            }, 5000);
+            }, 500);
         }
     });
 });
@@ -311,7 +315,7 @@ function getPlayerNames(room) { return Object.values(room.players).map(p => p.us
 function createRoom(id) { return { id: id, players: {}, wolves: [], chests: [], status: 'lobby', timerStart: 0, level: 1 }; }
 function createPlayer(id, name) {
     const hue = Math.floor(Math.random() * 360);
-    return { id: id, username: name || "Hunter", color: `hsl(${hue}, 80%, 60%)`, x: 750, y: 750, hp: 100, maxHp: 100, dmg: 10, speed: PLAYER_SPEED, alive: true, invulnerable: false, inventory: [], companions: [] };
+    return { id: id, username: name, color: `hsl(${hue}, 80%, 60%)`, x: 750, y: 750, hp: 100, maxHp: 100, dmg: 10, speed: PLAYER_SPEED, alive: true, invulnerable: false, inventory: [], companions: [] };
 }
 function spawnEntities(room, level) {
     room.wolves = [];
