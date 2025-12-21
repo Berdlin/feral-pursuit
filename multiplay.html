@@ -6,7 +6,6 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>Feral Pursuit - Multiplayer</title>
     <style>
-        /* BASE STYLES */
         body {
             font-family: 'Segoe UI', sans-serif;
             background-color: #080808;
@@ -51,6 +50,7 @@
             will-change: transform;
         }
 
+        /* --- UI ELEMENTS --- */
         #minimap-container {
             position: absolute;
             top: 20px;
@@ -80,7 +80,7 @@
             background-color: #ffd700;
         }
 
-        /* ENTITIES & VISUALS */
+        /* ENTITIES */
         .icon {
             position: absolute;
             transform: translate(-50%, -50%);
@@ -88,9 +88,11 @@
             flex-direction: column;
             align-items: center;
             pointer-events: none;
+            z-index: 20;
             will-change: top, left;
         }
 
+        /* Players - High Z-Index */
         .player-icon {
             font-size: 2em;
             width: 40px;
@@ -101,6 +103,7 @@
             justify-content: center;
             align-items: center;
             box-shadow: 0 0 10px rgba(255, 255, 255, 0.3);
+            background: #333;
         }
 
         .name-tag {
@@ -114,6 +117,7 @@
             font-weight: bold;
         }
 
+        /* Wolves - High Z-Index */
         .wolf-entity {
             font-size: 2.5em;
             width: 50px;
@@ -121,7 +125,7 @@
             background: #500;
             border-radius: 50%;
             border: 2px solid #f00;
-            z-index: 9;
+            z-index: 20;
             position: absolute;
             display: flex;
             justify-content: center;
@@ -157,17 +161,18 @@
             justify-content: center;
             align-items: center;
             transform: translate(-50%, -50%);
-            will-change: top, left;
+            z-index: 19;
         }
 
+        /* Chests - LOWER Z-Index so players walk OVER them */
         .chest {
             font-size: 1.8em;
-            z-index: 8;
+            z-index: 5;
             position: absolute;
             transform: translate(-50%, -50%);
         }
 
-        /* HUD & UI */
+        /* HUD */
         .hud-top {
             position: absolute;
             top: 20px;
@@ -206,6 +211,7 @@
             border: 2px solid transparent;
         }
 
+        /* INVENTORY SCROLL FIX */
         .inventory-sidebar {
             width: 280px;
             background-color: #111;
@@ -224,6 +230,15 @@
         .inventory-sidebar.visible {
             transform: translateX(0);
         }
+
+        #invList {
+            flex-grow: 1;
+            overflow-y: auto;
+            max-height: 80vh;
+            padding-bottom: 20px;
+        }
+
+        /* Scrollable */
 
         .inv-item {
             background: #222;
@@ -249,6 +264,7 @@
             font-size: 0.8em;
         }
 
+        /* MODALS */
         #dogStatsModal {
             position: absolute;
             top: 50%;
@@ -315,6 +331,7 @@
             font-weight: bold;
         }
 
+        /* DEATH / REVIVE MODALS */
         #reviveModal {
             position: fixed;
             top: 0;
@@ -346,6 +363,33 @@
             color: white;
             border: 1px solid #00ff00;
             cursor: pointer;
+        }
+
+        #deathOverlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(50, 0, 0, 0.8);
+            z-index: 200;
+            display: none;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            color: red;
+            font-family: 'Cinzel', serif;
+        }
+
+        #deathOverlay h1 {
+            font-size: 4em;
+            text-shadow: 0 0 20px red;
+            margin-bottom: 10px;
+        }
+
+        #deathOverlay p {
+            color: white;
+            font-size: 1.5em;
         }
 
         /* MOBILE CONTROLS */
@@ -449,7 +493,7 @@
             justify-content: center;
             align-items: center;
             flex-direction: column;
-            z-index: 200;
+            z-index: 250;
         }
 
         .close-modal-btn {
@@ -496,6 +540,15 @@
             </div>
         </div>
 
+        <div id="deathOverlay">
+            <h1>YOU DIED</h1>
+            <p>Waiting for teammates...</p>
+            <div id="selfReviveArea" style="margin-top:20px; display:none;">
+                <button onclick="useSelfRevive()" class="revive-btn"
+                    style="background:gold; color:black; border-color:white;">USE TOTEM (SELF REVIVE)</button>
+            </div>
+        </div>
+
         <div id="adminPanel">
             <h2 style="color:#00ff00; border-bottom:1px solid #00ff00; text-align:center; margin-top:0;">ADMIN CONSOLE
             </h2>
@@ -522,7 +575,7 @@
             <div id="minimap-container"></div>
             <div id="mapViewport">
                 <div id="fxLayer"
-                    style="position: absolute; top:0; left:0; width:100%; height:100%; pointer-events:none; z-index:5;">
+                    style="position: absolute; top:0; left:0; width:100%; height:100%; pointer-events:none; z-index:50;">
                 </div>
                 <div id="entitiesLayer"></div>
             </div>
@@ -556,8 +609,7 @@
     <script>
         const socket = io();
         let myId = null;
-        // LOCAL MOVEMENT VARS
-        let myPlayerLocal = { x: 750, y: 750, speed: 7, lastServerX: 750, lastServerY: 750 };
+        let myPlayerLocal = { x: 750, y: 750, speed: 7, alive: true };
         let keyStates = {};
         let isMobile = /Android|iPhone|iPad/i.test(navigator.userAgent);
         let joyActive = false;
@@ -565,7 +617,7 @@
         const joyBase = document.getElementById('joystickZone');
         const joyKnob = document.getElementById('joystickKnob');
 
-        // Interpolation Stores
+        // Interpolation
         let localEntities = {};
         let lastTime = 0;
 
@@ -582,26 +634,39 @@
         });
 
         socket.on('gameStateUpdate', (state) => {
-            // --- FIX 2: IMPROVED ANTI-LAG / RECONCILIATION ---
+            // FIX: Lag & Drift
             if (state.players[myId]) {
                 const sP = state.players[myId];
                 myPlayerLocal.speed = sP.speed;
+                myPlayerLocal.alive = sP.alive;
 
-                // Calc distance between where WE are and where SERVER says we are
+                // Sync Position:
+                // If distance > 100px (lag spike/collision), snap immediately
+                // If distance > 20px, lerp smoothly
                 const dist = Math.hypot(sP.x - myPlayerLocal.x, sP.y - myPlayerLocal.y);
-
-                // RELAXED SNAP: Only snap if distance is HUGE (200px), essentially a collision/cheat correction
-                // We ignore small drifts (dist < 200) so PC movement feels smooth.
-                if (dist > 200) {
+                if (dist > 100) {
                     myPlayerLocal.x = sP.x;
                     myPlayerLocal.y = sP.y;
+                } else if (dist > 20) {
+                    myPlayerLocal.x += (sP.x - myPlayerLocal.x) * 0.1;
+                    myPlayerLocal.y += (sP.y - myPlayerLocal.y) * 0.1;
                 }
             }
-
             updateLocalEntities(state);
             updateHUD(state);
             updateMinimap(state);
             updateDogModal(state);
+        });
+
+        socket.on('playerDied', (data) => {
+            if (data.id === myId) {
+                document.getElementById('deathOverlay').style.display = 'flex';
+                keyStates = {}; // Disable movement
+            }
+        });
+
+        socket.on('youRevived', () => {
+            document.getElementById('deathOverlay').style.display = 'none';
         });
 
         socket.on('openReviveModal', (players) => {
@@ -648,6 +713,7 @@
 
         function updateLocalEntities(state) {
             const layer = document.getElementById('entitiesLayer');
+            const seenIds = new Set();
 
             // 1. Chests
             document.querySelectorAll('.chest').forEach(e => e.remove());
@@ -659,70 +725,64 @@
                 }
             });
 
-            // --- FIX 1: WOLVES VISIBILITY ---
+            // 2. Wolves
             state.wolves.forEach(w => {
-                const wolfKey = `w-${w.id}`; // Matches the loop key
+                const wKey = `w-${w.id}`;
+                seenIds.add(wKey);
 
                 if (w.hp <= 0) {
-                    const el = document.getElementById(wolfKey);
+                    const el = document.getElementById(wKey);
                     if (el) el.remove();
                     return;
                 }
 
-                let el = document.getElementById(wolfKey);
+                let el = document.getElementById(wKey);
                 if (!el) {
-                    el = document.createElement('div');
-                    el.id = wolfKey;  // !!! CRITICAL FIX: ID must match localEntities key !!!
-                    el.className = 'wolf-entity';
+                    el = document.createElement('div'); el.id = wKey; el.className = 'wolf-entity';
                     el.innerText = '🐺';
                     el.innerHTML += `<div class="bar-container"><div class="bar-fill" id="wolf-hp-${w.id}"></div></div>`;
                     layer.appendChild(el);
-                    // Init interpolation point
-                    localEntities[wolfKey] = { x: w.x, y: w.y };
+                    localEntities[wKey] = { x: w.x, y: w.y };
                 }
 
-                // Update target for interpolation
-                if (!localEntities[wolfKey]) localEntities[wolfKey] = { x: w.x, y: w.y };
-                localEntities[wolfKey].targetX = w.x;
-                localEntities[wolfKey].targetY = w.y;
+                if (!localEntities[wKey]) localEntities[wKey] = { x: w.x, y: w.y };
+                localEntities[wKey].targetX = w.x;
+                localEntities[wKey].targetY = w.y;
 
-                // HP Bar
                 const bar = document.getElementById(`wolf-hp-${w.id}`);
                 if (bar) bar.style.width = ((w.hp / w.maxHp) * 100) + '%';
             });
 
-            // 3. Players
+            // 3. Players & Companions
             for (const id in state.players) {
                 if (id === myId) continue;
                 const p = state.players[id];
                 const pKey = `p-${id}`;
+                seenIds.add(pKey);
 
                 if (!p.alive) {
-                    if (document.getElementById(pKey)) document.getElementById(pKey).remove();
+                    const el = document.getElementById(pKey); if (el) el.remove();
                     continue;
                 }
 
                 let el = document.getElementById(pKey);
                 if (!el) {
-                    el = document.createElement('div');
-                    el.id = pKey;
-                    el.className = 'icon';
+                    el = document.createElement('div'); el.id = pKey; el.className = 'icon';
                     el.innerHTML = `<div class="name-tag">${p.username}</div><div class="player-icon" style="background:${p.color}">🏃</div>`;
                     layer.appendChild(el);
                     localEntities[pKey] = { x: p.x, y: p.y };
                 }
+                if (!localEntities[pKey]) localEntities[pKey] = { x: p.x, y: p.y };
                 localEntities[pKey].targetX = p.x;
                 localEntities[pKey].targetY = p.y;
                 el.style.opacity = p.invulnerable ? 0.5 : 1;
 
-                // Companions
                 p.companions.forEach((dog, idx) => {
                     const dKey = `d-${id}-${idx}`;
+                    seenIds.add(dKey);
                     let dEl = document.getElementById(dKey);
                     if (!dEl) {
-                        dEl = document.createElement('div');
-                        dEl.id = dKey;
-                        dEl.className = 'friendly-wolf';
+                        dEl = document.createElement('div'); dEl.id = dKey; dEl.className = 'friendly-wolf';
                         dEl.innerText = '🐕';
                         layer.appendChild(dEl);
                         localEntities[dKey] = { x: dog.x, y: dog.y };
@@ -732,29 +792,38 @@
                     localEntities[dKey].targetY = dog.y;
                 });
             }
+
+            // Cleanup Stale Entities (Fix memory leak)
+            for (const key in localEntities) {
+                if (!seenIds.has(key) && key !== `p-${myId}`) {
+                    const el = document.getElementById(key);
+                    if (el) el.remove();
+                    delete localEntities[key];
+                }
+            }
         }
 
-        // --- RENDER LOOP (60fps) ---
         function renderLoop(timestamp) {
             if (!lastTime) lastTime = timestamp;
             const dt = (timestamp - lastTime) / 1000;
             lastTime = timestamp;
 
-            // 1. Move ME (Client Prediction)
-            let dx = 0, dy = 0;
-            if (keyStates['w']) dy--; if (keyStates['s']) dy++;
-            if (keyStates['a']) dx--; if (keyStates['d']) dx++;
-            if (joyActive) { dx = joyData.x; dy = joyData.y; }
+            // My Movement
+            if (myPlayerLocal.alive) {
+                let dx = 0, dy = 0;
+                if (keyStates['w']) dy--; if (keyStates['s']) dy++;
+                if (keyStates['a']) dx--; if (keyStates['d']) dx++;
+                if (joyActive) { dx = joyData.x; dy = joyData.y; }
 
-            if (dx !== 0 || dy !== 0) {
-                const len = Math.sqrt(dx * dx + dy * dy);
-                if (len > 0) {
-                    const moveStep = (myPlayerLocal.speed * (dt * 30));
-                    myPlayerLocal.x += (dx / len) * moveStep;
-                    myPlayerLocal.y += (dy / len) * moveStep;
-                    // Clamp
-                    myPlayerLocal.x = Math.max(20, Math.min(1480, myPlayerLocal.x));
-                    myPlayerLocal.y = Math.max(20, Math.min(1480, myPlayerLocal.y));
+                if (dx !== 0 || dy !== 0) {
+                    const len = Math.sqrt(dx * dx + dy * dy);
+                    if (len > 0) {
+                        const moveStep = (myPlayerLocal.speed * (dt * 30));
+                        myPlayerLocal.x += (dx / len) * moveStep;
+                        myPlayerLocal.y += (dy / len) * moveStep;
+                        myPlayerLocal.x = Math.max(20, Math.min(1480, myPlayerLocal.x));
+                        myPlayerLocal.y = Math.max(20, Math.min(1480, myPlayerLocal.y));
+                    }
                 }
             }
 
@@ -769,22 +838,22 @@
             if (myEl) {
                 myEl.style.left = myPlayerLocal.x + 'px';
                 myEl.style.top = myPlayerLocal.y + 'px';
+                myEl.style.display = myPlayerLocal.alive ? 'flex' : 'none';
             }
 
-            // 2. Camera
+            // Camera
             const stage = document.getElementById('stage');
             let camX = (stage.clientWidth / 2) - myPlayerLocal.x;
             let camY = (stage.clientHeight / 2) - myPlayerLocal.y;
-            // Map Bounds
             camX = Math.min(0, Math.max(camX, stage.clientWidth - 1500));
             camY = Math.min(0, Math.max(camY, stage.clientHeight - 1500));
             document.getElementById('mapViewport').style.transform = `translate3d(${camX}px, ${camY}px, 0)`;
 
-            // 3. Smooth OTHERS
+            // Interpolate Others
             const lerpSpeed = 0.2;
             for (const key in localEntities) {
                 const ent = localEntities[key];
-                const el = document.getElementById(key); // This now works because wolf IDs match keys
+                const el = document.getElementById(key);
                 if (el && ent.targetX !== undefined) {
                     ent.x += (ent.targetX - ent.x) * lerpSpeed;
                     ent.y += (ent.targetY - ent.y) * lerpSpeed;
@@ -797,8 +866,9 @@
         }
         requestAnimationFrame(renderLoop);
 
-        // --- INPUT SENDER (30Hz) ---
+        // Input Sender (30Hz)
         setInterval(() => {
+            if (!myPlayerLocal.alive) return;
             let dx = 0, dy = 0;
             if (keyStates['w']) dy--; if (keyStates['s']) dy++;
             if (keyStates['a']) dx--; if (keyStates['d']) dx++;
@@ -811,19 +881,36 @@
 
         function updateHUD(state) {
             const p = state.players[myId];
-            if (!p || !p.alive) return;
-            document.getElementById('hpDisplay').innerText = Math.ceil(p.hp);
+            if (!p) return; // Might be dead or connecting
+
+            document.getElementById('hpDisplay').innerText = Math.max(0, Math.ceil(p.hp));
             document.getElementById('dmgDisplay').innerText = p.dmg;
             document.getElementById('levelDisplay').innerText = state.day;
             document.getElementById('timeDisplay').innerText = state.status === 'collection' ? state.timer + 's' : 'HUNT';
 
-            const invList = document.getElementById('invList'); invList.innerHTML = '';
+            // Inventory
+            const invList = document.getElementById('invList');
+            invList.innerHTML = '';
+
+            let hasTotem = false;
+            let totemIndex = -1;
+
             p.inventory.forEach((item, index) => {
+                if (item.type === 'revive') { hasTotem = true; totemIndex = index; }
                 const div = document.createElement('div'); div.className = 'inv-item';
                 div.innerHTML = `<span class="key-hint">${index + 1}</span> <span>${item.icon}</span> <span>${item.name}</span>`;
                 div.onclick = () => { socket.emit('playerAction', { type: 'useItem', index: index }); };
                 invList.appendChild(div);
             });
+
+            // Self Revive Logic
+            const selfReviveBtn = document.getElementById('selfReviveArea');
+            if (!p.alive && hasTotem) {
+                selfReviveBtn.style.display = 'block';
+                selfReviveBtn.onclick = () => socket.emit('playerAction', { type: 'useItem', index: totemIndex });
+            } else {
+                selfReviveBtn.style.display = 'none';
+            }
         }
 
         function updateDogModal(state) {
@@ -860,6 +947,7 @@
         function toggleInventory() { document.getElementById('inventoryPanel').classList.toggle('visible'); }
         function closeRevive() { document.getElementById('reviveModal').style.display = 'none'; }
         function sendAction(type) { socket.emit('playerAction', { type: type }); }
+
         function emitAdmin(action) {
             const data = { action: action };
             if (action === 'spawnDogs') data.val = parseInt(document.getElementById('admDogCount').value);

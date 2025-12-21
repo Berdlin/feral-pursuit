@@ -7,7 +7,6 @@ const { Server } = require("socket.io");
 const io = new Server(server);
 const { createClient } = require('@supabase/supabase-js');
 
-// --- DATABASE SETUP (Safe Failover) ---
 let supabase = null;
 if (process.env.SUPABASE_URL && process.env.SUPABASE_SERVICE_ROLE_KEY) {
     try {
@@ -24,30 +23,21 @@ app.get('/', (req, res) => {
     res.sendFile(__dirname + '/gameintro.html');
 });
 
-// --- GAME CONFIGURATION ---
+// --- GAME CONSTANTS (Matched to realgame.html) ---
 const MAP_SIZE = 1500;
 const WOLF_SPEED = 4.5;
 const DOG_SPEED = 6.0;
 const PLAYER_SPEED = 7;
+const LOOT_RADIUS = 80; // Increased sensitivity
 
 const rooms = {};
-// Cache world record in memory
 let currentWorldRecord = { holder: 'Nobody', days: 0 };
 
-// --- INITIAL DB FETCH ---
 async function fetchWorldRecord() {
     if (!supabase) return;
     try {
-        const { data, error } = await supabase
-            .from('leaderboard')
-            .select('*')
-            .order('days_survived', { ascending: false })
-            .limit(1)
-            .single();
-
-        if (data) {
-            currentWorldRecord = { holder: data.username, days: data.days_survived };
-        }
+        const { data } = await supabase.from('leaderboard').select('*').order('days_survived', { ascending: false }).limit(1).single();
+        if (data) currentWorldRecord = { holder: data.username, days: data.days_survived };
     } catch (e) { console.log("DB Fetch Error", e); }
 }
 fetchWorldRecord();
@@ -65,13 +55,13 @@ function updateRoom(roomId) {
 
     const elapsed = (Date.now() - room.timerStart) / 1000;
 
-    // 1. Phase Change: Collection -> Chase
+    // Phase Change
     if (room.status === 'collection' && elapsed > 25) {
         room.status = 'chase';
         io.to(roomId).emit('alert', { msg: "THE HUNT BEGINS!", color: "red" });
     }
 
-    // 2. Wolf AI
+    // Wolf AI
     if (room.status === 'chase') {
         room.wolves.forEach(wolf => {
             if (wolf.hp <= 0) return;
@@ -79,6 +69,7 @@ function updateRoom(roomId) {
             let target = null;
             let minDist = 9999;
 
+            // Find closest target (Player or Dog)
             for (const pid in room.players) {
                 const p = room.players[pid];
                 if (!p.alive) continue;
@@ -97,11 +88,12 @@ function updateRoom(roomId) {
                 wolf.x += Math.cos(angle) * WOLF_SPEED;
                 wolf.y += Math.sin(angle) * WOLF_SPEED;
 
+                // Attack Logic
                 if (minDist < 35) {
                     const now = Date.now();
                     if (now > (wolf.nextAttack || 0)) {
                         wolf.nextAttack = now + 500;
-                        if (target.username) {
+                        if (target.username) { // It's a player
                             if (!target.invulnerable) {
                                 target.hp -= wolf.dmg;
                                 target.invulnerable = true;
@@ -109,11 +101,12 @@ function updateRoom(roomId) {
                                 if (target.hp <= 0) {
                                     target.hp = 0;
                                     target.alive = false;
+                                    io.to(roomId).emit('playerDied', { id: target.id, name: target.username });
                                     io.to(roomId).emit('alert', { msg: `${target.username} HAS FALLEN!`, color: "red" });
                                     checkGameOver(roomId);
                                 }
                             }
-                        } else {
+                        } else { // It's a dog
                             target.hp -= wolf.dmg;
                             if (target.hp <= 0) {
                                 for (const pid in room.players) {
@@ -127,7 +120,7 @@ function updateRoom(roomId) {
         });
     }
 
-    // 3. Companion AI
+    // Companion AI
     for (const pid in room.players) {
         const p = room.players[pid];
         if (!p.alive) continue;
@@ -153,7 +146,7 @@ function updateRoom(roomId) {
 
             if (targetWolf && dist < 50) {
                 const now = Date.now();
-                if (now > dog.nextAttack) {
+                if (now > (dog.nextAttack || 0)) {
                     targetWolf.hp -= dog.dmg;
                     dog.nextAttack = now + 800;
                     if (targetWolf.hp <= 0) checkVictory(roomId);
@@ -175,15 +168,13 @@ function updateRoom(roomId) {
 function checkVictory(roomId) {
     const room = rooms[roomId];
     if (!room) return;
-
-    // Check if ALL wolves are dead (hp <= 0)
     const allDead = room.wolves.every(w => w.hp <= 0);
 
     if (allDead) {
         room.level++;
         room.status = 'collection';
         room.timerStart = Date.now();
-        // Heal Players slightly for next round
+        // Slight Heal
         for (const pid in room.players) {
             if (room.players[pid].alive) {
                 room.players[pid].hp = Math.min(room.players[pid].maxHp, room.players[pid].hp + 20);
@@ -197,7 +188,9 @@ function checkVictory(roomId) {
 function checkGameOver(roomId) {
     const room = rooms[roomId];
     if (!room) return;
-    if (!Object.values(room.players).some(p => p.alive)) {
+    // Only over if ALL players are dead
+    const anyAlive = Object.values(room.players).some(p => p.alive);
+    if (!anyAlive) {
         room.status = 'over';
         io.to(roomId).emit('gameOver', { win: false, reason: "THE PACK CONSUMED ALL", days: room.level });
     }
@@ -206,13 +199,10 @@ function checkGameOver(roomId) {
 // --- SOCKET LOGIC ---
 io.on('connection', (socket) => {
 
-    socket.on('getLeaderboard', () => {
-        socket.emit('leaderboardData', currentWorldRecord);
-    });
+    socket.on('getLeaderboard', () => { socket.emit('leaderboardData', currentWorldRecord); });
 
     socket.on('verifyIdentity', (data) => {
-        const { username, password } = data;
-        if (username && username.toLowerCase() === "beka_ei" && password !== "bereketisthebest") {
+        if (data.username && data.username.toLowerCase() === "beka_ei" && data.password !== "bereketisthebest") {
             socket.emit('authResult', { success: false, msg: "ACCESS DENIED" });
         } else {
             socket.emit('authResult', { success: true, msg: "VERIFIED" });
@@ -223,8 +213,7 @@ io.on('connection', (socket) => {
         const code = Math.floor(1000 + Math.random() * 9000).toString();
         socket.join(code);
         rooms[code] = createRoom(code);
-        const name = data && data.username ? data.username : "Hunter";
-        rooms[code].players[socket.id] = createPlayer(socket.id, name);
+        rooms[code].players[socket.id] = createPlayer(socket.id, data.username || "Hunter");
         socket.emit('roomCreated', code);
         io.to(code).emit('lobbyUpdate', getPlayerNames(rooms[code]));
     });
@@ -232,8 +221,7 @@ io.on('connection', (socket) => {
     socket.on('joinGame', (code, data) => {
         if (rooms[code] && rooms[code].status !== 'over') {
             socket.join(code);
-            const name = data && data.username ? data.username : "Hunter";
-            rooms[code].players[socket.id] = createPlayer(socket.id, name);
+            rooms[code].players[socket.id] = createPlayer(socket.id, data.username || "Hunter");
             socket.emit('joinSuccess', code);
             if (rooms[code].status !== 'lobby') {
                 socket.emit('gameStarted');
@@ -261,6 +249,8 @@ io.on('connection', (socket) => {
         if (!room) return;
         const p = room.players[socket.id];
         if (p && p.alive) {
+            // Anti-Lag / Anti-Cheat: basic clamping but trust client mostly for smoothness
+            // We apply the movement delta to the server position
             p.x = Math.max(20, Math.min(MAP_SIZE - 20, p.x + data.dx * p.speed));
             p.y = Math.max(20, Math.min(MAP_SIZE - 20, p.y + data.dy * p.speed));
         }
@@ -270,9 +260,10 @@ io.on('connection', (socket) => {
         const room = getRoom(socket);
         if (!room) return;
         const p = room.players[socket.id];
-        if (!p || !p.alive) return;
+        // Allow actions if alive OR if using a revive totem while dead
+        if (!p) return;
 
-        if (data.type === 'attack') {
+        if (data.type === 'attack' && p.alive) {
             io.to(room.id).emit('fx', { type: 'attack', x: p.x, y: p.y });
             room.wolves.forEach(w => {
                 if (w.hp > 0 && Math.hypot(w.x - p.x, w.y - p.y) < 100) {
@@ -281,17 +272,20 @@ io.on('connection', (socket) => {
                 }
             });
         }
-        else if (data.type === 'loot') {
+        else if (data.type === 'loot' && p.alive) {
             room.chests.forEach(c => {
-                if (!c.opened && Math.hypot(p.x - c.x, p.y - c.y) < 60) {
+                if (!c.opened && Math.hypot(p.x - c.x, p.y - c.y) < LOOT_RADIUS) {
                     c.opened = true;
+                    // Logic Parity: Trap Handling
                     if (c.reward.type.includes('hp_loss') || c.reward.type.includes('curse') || c.reward.type.includes('hp_half')) {
                         if (c.reward.type === 'hp_loss') p.hp += c.reward.val;
                         else if (c.reward.type === 'hp_half') p.hp = Math.floor(p.hp * c.reward.val);
-                        else if (c.reward.type === 'curse_dmg') p.dmg += c.reward.val;
+                        else if (c.reward.type === 'curse_dmg') p.dmg = Math.max(1, p.dmg + c.reward.val);
+
                         socket.emit('alert', { msg: `TRAP: ${c.reward.name}!`, color: "red" });
                         if (p.hp <= 0) {
                             p.alive = false;
+                            io.to(room.id).emit('playerDied', { id: p.id, name: p.username });
                             io.to(room.id).emit('alert', { msg: `${p.username} DIED TO A TRAP!`, color: "red" });
                             checkGameOver(room.id);
                         }
@@ -305,12 +299,25 @@ io.on('connection', (socket) => {
         else if (data.type === 'useItem') {
             const item = p.inventory[data.index];
             if (!item) return;
+
+            // Logic Parity: Revive Other
             if (item.type === 'revive') {
-                const deadPlayers = Object.values(room.players).filter(pl => !pl.alive);
-                if (deadPlayers.length === 0) socket.emit('alert', { msg: "NO DEAD CREW MEMBERS", color: "orange" });
-                else socket.emit('openReviveModal', deadPlayers.map(pl => ({ id: pl.id, name: pl.username })));
-            } else {
-                applyItemEffect(p, item);
+                const deadPlayers = Object.values(room.players).filter(pl => !pl.alive && pl.id !== p.id);
+                // If I am dead, I can use it on myself
+                if (!p.alive) {
+                    // Self Revive
+                    p.alive = true; p.hp = 50;
+                    p.inventory.splice(data.index, 1);
+                    io.to(room.id).emit('alert', { msg: `${p.username} USED A TOTEM!`, color: "#00ff00" });
+                    socket.emit('youRevived'); // Tell client to hide death screen
+                } else {
+                    // Reviving others
+                    if (deadPlayers.length === 0) socket.emit('alert', { msg: "NO DEAD CREW MEMBERS", color: "orange" });
+                    else socket.emit('openReviveModal', deadPlayers.map(pl => ({ id: pl.id, name: pl.username })));
+                }
+            } else if (p.alive) {
+                // Standard items
+                applyItemEffect(p, item, room.level);
                 p.inventory.splice(data.index, 1);
             }
         }
@@ -322,6 +329,7 @@ io.on('connection', (socket) => {
                 p.inventory.splice(itemIdx, 1);
                 target.alive = true; target.hp = 50; target.x = p.x; target.y = p.y;
                 io.to(room.id).emit('alert', { msg: `${target.username} REVIVED BY ${p.username}!`, color: "#00ff00" });
+                io.to(target.id).emit('youRevived');
             }
         }
     });
@@ -330,7 +338,7 @@ io.on('connection', (socket) => {
         const room = getRoom(socket);
         if (!room) return;
         const p = room.players[socket.id];
-        if (data.action === 'spawnDogs') for (let i = 0; i < data.val; i++) p.companions.push({ x: p.x, y: p.y, hp: 150, maxHp: 150, dmg: 20, nextAttack: 0 });
+        if (data.action === 'spawnDogs') for (let i = 0; i < data.val; i++) p.companions.push({ x: p.x, y: p.y, hp: 150 + (room.level * 20), maxHp: 150, dmg: 15 + (room.level * 2), nextAttack: 0 });
         else if (data.action === 'killWolves') { room.wolves.forEach(w => w.hp = 0); checkVictory(room.id); }
         else if (data.action === 'setStats') { if (data.hp) p.hp = parseInt(data.hp); if (data.dmg) p.dmg = parseInt(data.dmg); if (data.speed) p.speed = parseInt(data.speed); }
     });
@@ -347,7 +355,6 @@ io.on('connection', (socket) => {
         }
     });
 
-    // --- LEADERBOARD LOGIC ---
     socket.on('reportScore', async (data) => {
         if (!supabase) return;
         try {
@@ -369,27 +376,25 @@ function createRoom(id) { return { id: id, players: {}, wolves: [], chests: [], 
 function createPlayer(id, name) {
     const hue = Math.floor(Math.random() * 360);
     return {
-        id: id,
-        username: name,
-        color: `hsl(${hue}, 80%, 60%)`,
-        x: 750, y: 750,
-        hp: 100, maxHp: 100, dmg: 10, speed: PLAYER_SPEED,
-        alive: true, invulnerable: false,
-        inventory: [], companions: []
+        id: id, username: name, color: `hsl(${hue}, 80%, 60%)`,
+        x: 750, y: 750, hp: 100, maxHp: 100, dmg: 10, speed: PLAYER_SPEED,
+        alive: true, invulnerable: false, inventory: [], companions: []
     };
 }
 
 function spawnEntities(room, level) {
     room.wolves = [];
-    const count = (level === 1) ? 1 : Math.min(level + 2, 50);
+    // Logic Parity: Spawn counts
+    const count = (level === 1) ? 1 : Math.min(level + 1, 50);
+    const wolfHP = level * 80 + 50; // Matched realgame.html
+    const wolfDMG = level * 5 + 5;  // Matched realgame.html
+
     for (let i = 0; i < count; i++) {
         room.wolves.push({
             id: i,
             x: Math.random() > 0.5 ? -100 : MAP_SIZE + 100,
             y: Math.random() * MAP_SIZE,
-            hp: 80 + (level * 20),
-            maxHp: 80 + (level * 20),
-            dmg: 5 + level
+            hp: wolfHP, maxHp: wolfHP, dmg: wolfDMG, nextAttack: 0
         });
     }
     room.chests = [];
@@ -404,20 +409,20 @@ function spawnEntities(room, level) {
 }
 
 function generateReward(level) {
-    const rand = Math.random();
-    if (rand < 0.30) {
-        return { name: "Revive Totem", type: "revive", icon: "✝️" };
-    }
-    const subRand = Math.random() * 100;
-    let badChance = Math.max(10, 50 - (level * 2));
+    // Exact probabilities from realgame.html
+    const rand = Math.random() * 100;
 
-    if (subRand < badChance) {
+    // Tiny chance for Revive Totem (Exclusive to multiplayer, keeps game fun)
+    if (Math.random() < 0.05) return { name: "Revive Totem", type: "revive", icon: "✝️" };
+
+    let badChance = Math.max(10, 50 - (level * 2));
+    if (rand < badChance) {
         return [
             { name: "Cursed Blade", type: "curse_dmg", val: -5, icon: "💀" },
             { name: "Blood Debt", type: "hp_half", val: 0.5, icon: "🩸" },
             { name: "Rotten Meat", type: "hp_loss", val: -25, icon: "🥩" }
         ][Math.floor(Math.random() * 3)];
-    } else if (subRand < badChance + 15) {
+    } else if (rand < badChance + 15) {
         return { name: "Summon Dog", type: "potion", icon: "🐕" };
     } else {
         return [
@@ -428,8 +433,8 @@ function generateReward(level) {
     }
 }
 
-function applyItemEffect(p, item) {
-    if (item.type === 'potion') p.companions.push({ x: p.x, y: p.y, hp: 120, maxHp: 120, dmg: 15, nextAttack: 0 });
+function applyItemEffect(p, item, level) {
+    if (item.type === 'potion') p.companions.push({ x: p.x, y: p.y, hp: 100 + (level * 10), maxHp: 100 + (level * 10), dmg: 15 + level, nextAttack: 0 });
     else if (item.type === 'hp') p.hp = Math.min(p.maxHp, p.hp + item.val);
     else if (item.type === 'shield') { p.maxHp += item.val; p.hp += item.val; }
     else if (item.type === 'sword') p.dmg += item.val;

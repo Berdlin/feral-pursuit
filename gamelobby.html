@@ -31,11 +31,12 @@
         input {
             width: 90%;
             padding: 12px;
-            margin: 5px 0 15px 0;
+            margin: 10px 0;
             background: #222;
             border: 1px solid #444;
             color: #fff;
             text-align: center;
+            font-size: 1.1em;
         }
 
         .btn {
@@ -46,6 +47,7 @@
             border: none;
             font-weight: bold;
             cursor: pointer;
+            color: white;
         }
 
         .btn:hover {
@@ -73,6 +75,14 @@
             color: #888;
             margin-top: 10px;
         }
+
+        .join-box {
+            border: 1px solid #333;
+            padding: 15px;
+            margin-top: 20px;
+            border-radius: 5px;
+            background: rgba(255, 255, 255, 0.05);
+        }
     </style>
 </head>
 
@@ -83,24 +93,23 @@
             <label>OPERATOR NAME</label>
             <input type="text" id="usernameInput" placeholder="Enter Codename" required>
 
-            <hr style="border-color: #333; margin: 20px 0;">
-
             <button onclick="hostGame()" class="btn">Host New Mission</button>
 
-            <div style="position:relative; margin-top: 20px;">
-                <label>JOIN EXISTING (CODE)</label>
-                <input type="text" id="joinCode" placeholder="0000">
+            <div class="join-box">
+                <label style="margin:0; text-align:center;">JOIN EXISTING SQUAD</label>
+                <input type="text" id="joinCode" placeholder="ENTER 4-DIGIT CODE" maxlength="4">
                 <button onclick="joinGame()" class="btn btn-green">Join Game</button>
             </div>
-            <p id="error-message" style="color: #ff6347;"></p>
+            <p id="error-message" style="color: #ff6347; margin-top:10px;"></p>
         </div>
 
         <div id="lobby-screen" style="display: none;">
             <h2>Room: <span id="displayCode" style="color: #4CAF50;"></span></h2>
             <span class="copy-link" onclick="copyInvite()">[Copy Invite Link]</span>
-            <ul id="playerList" style="text-align: left; background: #111; padding: 10px; list-style: none;"></ul>
-            <button id="startButton" onclick="startGame()" class="btn btn-green" style="display: none;">Start
-                Mission</button>
+            <ul id="playerList"
+                style="text-align: left; background: #111; padding: 10px; list-style: none; margin-top:20px;"></ul>
+            <button id="startButton" onclick="startGame()" class="btn btn-green"
+                style="display: none; margin-top:20px;">Start Mission</button>
         </div>
     </div>
     <script src="/socket.io/socket.io.js"></script>
