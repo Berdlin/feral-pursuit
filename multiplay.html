@@ -469,14 +469,12 @@
             </div>
             <div id="invList"></div>
         </div>
-
         <div class="hud-top">
             <div class="hud-stat">DAY: <span id="levelDisplay">1</span></div>
             <div class="hud-stat">HP: <span id="hpDisplay">100</span></div>
             <div class="hud-stat">DMG: <span id="dmgDisplay">10</span></div>
             <div class="hud-stat">TIME: <span id="timeDisplay">--</span></div>
         </div>
-
         <div id="topAlertBox"></div>
 
         <div id="dogStatsModal">
@@ -555,10 +553,10 @@
     <script>
         const socket = io();
         let myId = null;
-        let myPlayerLocal = { x: 750, y: 750, speed: 7 }; // Local prediction store
+        // LOCAL PREDICTION: We trust this x/y explicitly for our own movement
+        let myPlayerLocal = { x: 750, y: 750, speed: 7, lastServerX: 750, lastServerY: 750 };
         let keyStates = {};
         let isMobile = /Android|iPhone|iPad/i.test(navigator.userAgent);
-
         let joyActive = false;
         let joyData = { x: 0, y: 0 };
         const joyBase = document.getElementById('joystickZone');
@@ -566,6 +564,7 @@
 
         // Interpolation Stores for OTHER entities
         let localEntities = {};
+        let lastTime = 0;
 
         if (isMobile) document.getElementById('mobileLayer').style.display = 'block';
 
@@ -574,21 +573,28 @@
             let u = localStorage.getItem('gameUsername');
             const code = localStorage.getItem('gameRoomCode');
             const p = localStorage.getItem('gamePass') || "";
-
             socket.emit('verifyIdentity', { username: u, password: p });
             if (code) socket.emit('joinGame', code, { username: u });
             else window.location.href = 'gamelobby.html';
         });
 
         socket.on('gameStateUpdate', (state) => {
-            // Sync local player speed/stats from server, but keep X/Y predicted
+            // FIX: Don't snap local player unless huge desync (Anti-Lag)
             if (state.players[myId]) {
-                myPlayerLocal.speed = state.players[myId].speed;
-                // Optional: Rubber band if too far (simple reconciliation)
-                const dist = Math.hypot(state.players[myId].x - myPlayerLocal.x, state.players[myId].y - myPlayerLocal.y);
+                const sP = state.players[myId];
+                myPlayerLocal.speed = sP.speed; // Sync stats
+
+                // Calculate distance between local prediction and server reality
+                const dist = Math.hypot(sP.x - myPlayerLocal.x, sP.y - myPlayerLocal.y);
+
+                // If distance is massive (teleport/lag spike), snap. Otherwise, ignore server position for self.
                 if (dist > 150) {
-                    myPlayerLocal.x = state.players[myId].x;
-                    myPlayerLocal.y = state.players[myId].y;
+                    myPlayerLocal.x = sP.x;
+                    myPlayerLocal.y = sP.y;
+                } else if (dist > 20) {
+                    // Slight drift correction (very soft lerp)
+                    myPlayerLocal.x += (sP.x - myPlayerLocal.x) * 0.05;
+                    myPlayerLocal.y += (sP.y - myPlayerLocal.y) * 0.05;
                 }
             }
 
@@ -640,60 +646,46 @@
             if (user) socket.emit('reportScore', { username: user, days: data.days });
         });
 
-        // --- RENDER & PREDICTION LOGIC ---
-
         function updateLocalEntities(state) {
             const layer = document.getElementById('entitiesLayer');
 
-            // Draw Chests (Static)
+            // Chests
             document.querySelectorAll('.chest').forEach(e => e.remove());
             state.chests.forEach(c => {
                 if (!c.opened) {
-                    const el = document.createElement('div');
-                    el.className = 'chest'; el.innerText = '📦';
+                    const el = document.createElement('div'); el.className = 'chest'; el.innerText = '📦';
                     el.style.left = c.x + 'px'; el.style.top = c.y + 'px';
                     layer.appendChild(el);
                 }
             });
 
-            // Handle Wolves
+            // Wolves (Interpolated)
             state.wolves.forEach(w => {
                 if (w.hp <= 0) {
-                    const el = document.getElementById(`wolf-${w.id}`);
-                    if (el) el.remove();
-                    return;
+                    const el = document.getElementById(`wolf-${w.id}`); if (el) el.remove(); return;
                 }
                 let el = document.getElementById(`wolf-${w.id}`);
                 if (!el) {
-                    el = document.createElement('div');
-                    el.id = `wolf-${w.id}`; el.className = 'wolf-entity'; el.innerText = '🐺';
+                    el = document.createElement('div'); el.id = `wolf-${w.id}`; el.className = 'wolf-entity'; el.innerText = '🐺';
                     el.innerHTML += `<div class="bar-container"><div class="bar-fill" id="wolf-hp-${w.id}"></div></div>`;
                     layer.appendChild(el);
-                    localEntities[`w-${w.id}`] = { x: w.x, y: w.y };
+                    localEntities[`w-${w.id}`] = { x: w.x, y: w.y }; // Init pos
                 }
-                // Update Target for Smoothing
                 localEntities[`w-${w.id}`].targetX = w.x;
                 localEntities[`w-${w.id}`].targetY = w.y;
-
                 const bar = document.getElementById(`wolf-hp-${w.id}`);
                 if (bar) bar.style.width = ((w.hp / w.maxHp) * 100) + '%';
             });
 
-            // Handle Players
+            // Other Players (Interpolated)
             for (const id in state.players) {
+                if (id === myId) continue; // Skip self (handled in renderLoop)
                 const p = state.players[id];
-                if (!p.alive) {
-                    if (document.getElementById(`p-${id}`)) document.getElementById(`p-${id}`).remove();
-                    continue;
-                }
-
-                // If it's me, I handle my position locally in the loop to avoid ghosting
-                if (id === myId) continue;
+                if (!p.alive) { if (document.getElementById(`p-${id}`)) document.getElementById(`p-${id}`).remove(); continue; }
 
                 let el = document.getElementById(`p-${id}`);
                 if (!el) {
-                    el = document.createElement('div');
-                    el.id = `p-${id}`; el.className = 'icon';
+                    el = document.createElement('div'); el.id = `p-${id}`; el.className = 'icon';
                     el.innerHTML = `<div class="name-tag">${p.username}</div><div class="player-icon" style="background:${p.color}">🏃</div>`;
                     layer.appendChild(el);
                     localEntities[`p-${id}`] = { x: p.x, y: p.y };
@@ -702,12 +694,10 @@
                 localEntities[`p-${id}`].targetY = p.y;
                 el.style.opacity = p.invulnerable ? 0.5 : 1;
 
-                // Dogs
                 p.companions.forEach((dog, idx) => {
                     let dEl = document.getElementById(`d-${id}-${idx}`);
                     if (!dEl) {
-                        dEl = document.createElement('div');
-                        dEl.id = `d-${id}-${idx}`; dEl.className = 'friendly-wolf'; dEl.innerText = '🐕';
+                        dEl = document.createElement('div'); dEl.id = `d-${id}-${idx}`; dEl.className = 'friendly-wolf'; dEl.innerText = '🐕';
                         layer.appendChild(dEl);
                         localEntities[`d-${id}-${idx}`] = { x: dog.x, y: dog.y };
                     }
@@ -717,24 +707,25 @@
             }
         }
 
-        // --- THE "REMOVE GHOST" GAME LOOP ---
-        function renderLoop() {
-            // 1. Prediction: Move Local Player Instantly
+        // --- RENDER LOOP (60fps) ---
+        function renderLoop(timestamp) {
+            if (!lastTime) lastTime = timestamp;
+            const dt = (timestamp - lastTime) / 1000;
+            lastTime = timestamp;
+
+            // 1. Move ME (Client Prediction)
             let dx = 0, dy = 0;
-            if (keyStates['w']) dy--;
-            if (keyStates['s']) dy++;
-            if (keyStates['a']) dx--;
-            if (keyStates['d']) dx++;
+            if (keyStates['w']) dy--; if (keyStates['s']) dy++;
+            if (keyStates['a']) dx--; if (keyStates['d']) dx++;
             if (joyActive) { dx = joyData.x; dy = joyData.y; }
 
             if (dx !== 0 || dy !== 0) {
                 const len = Math.sqrt(dx * dx + dy * dy);
                 if (len > 0) {
-                    // Move prediction
-                    myPlayerLocal.x += (dx / len) * (myPlayerLocal.speed * 0.5); // 0.5 roughly matches tick rate visual
-                    myPlayerLocal.y += (dy / len) * (myPlayerLocal.speed * 0.5);
-
-                    // Boundary Check
+                    const moveStep = (myPlayerLocal.speed * (dt * 30)); // Scale to tick rate
+                    myPlayerLocal.x += (dx / len) * moveStep;
+                    myPlayerLocal.y += (dy / len) * moveStep;
+                    // Clamp
                     myPlayerLocal.x = Math.max(20, Math.min(1480, myPlayerLocal.x));
                     myPlayerLocal.y = Math.max(20, Math.min(1480, myPlayerLocal.y));
                 }
@@ -743,8 +734,7 @@
             // Draw ME
             let myEl = document.getElementById(`p-${myId}`);
             if (!myEl && myId) {
-                myEl = document.createElement('div');
-                myEl.id = `p-${myId}`; myEl.className = 'icon';
+                myEl = document.createElement('div'); myEl.id = `p-${myId}`; myEl.className = 'icon';
                 const user = localStorage.getItem('gameUsername') || "Me";
                 myEl.innerHTML = `<div class="name-tag" style="color:#00ff00">${user}</div><div class="player-icon" style="background:#ff4500; border-color:#00ff00;">🏃</div>`;
                 document.getElementById('entitiesLayer').appendChild(myEl);
@@ -754,24 +744,22 @@
                 myEl.style.top = myPlayerLocal.y + 'px';
             }
 
-            // 2. Camera: Follow ME
-            if (myId) {
-                const stage = document.getElementById('stage');
-                let camX = (stage.clientWidth / 2) - myPlayerLocal.x;
-                let camY = (stage.clientHeight / 2) - myPlayerLocal.y;
-                camX = Math.min(0, Math.max(camX, stage.clientWidth - 1500));
-                camY = Math.min(0, Math.max(camY, stage.clientHeight - 1500));
-                document.getElementById('mapViewport').style.transform = `translate3d(${camX}px, ${camY}px, 0)`;
-            }
+            // 2. Camera
+            const stage = document.getElementById('stage');
+            let camX = (stage.clientWidth / 2) - myPlayerLocal.x;
+            let camY = (stage.clientHeight / 2) - myPlayerLocal.y;
+            camX = Math.min(0, Math.max(camX, stage.clientWidth - 1500));
+            camY = Math.min(0, Math.max(camY, stage.clientHeight - 1500));
+            document.getElementById('mapViewport').style.transform = `translate3d(${camX}px, ${camY}px, 0)`;
 
-            // 3. Smooth Lerp for OTHERS
-            const alpha = 0.15;
+            // 3. Smooth OTHERS
+            const lerpSpeed = 0.2; // Smoothness factor
             for (const key in localEntities) {
                 const ent = localEntities[key];
                 const el = document.getElementById(key);
                 if (el && ent.targetX !== undefined) {
-                    ent.x += (ent.targetX - ent.x) * alpha;
-                    ent.y += (ent.targetY - ent.y) * alpha;
+                    ent.x += (ent.targetX - ent.x) * lerpSpeed;
+                    ent.y += (ent.targetY - ent.y) * lerpSpeed;
                     el.style.left = ent.x + 'px';
                     el.style.top = ent.y + 'px';
                 }
@@ -779,27 +767,20 @@
 
             requestAnimationFrame(renderLoop);
         }
-
-        // Start Render Loop
         requestAnimationFrame(renderLoop);
 
-
-        // --- INPUT SENDER ---
+        // --- INPUT SENDER (30Hz) ---
         setInterval(() => {
             let dx = 0, dy = 0;
-            if (keyStates['w']) dy--;
-            if (keyStates['s']) dy++;
-            if (keyStates['a']) dx--;
-            if (keyStates['d']) dx++;
+            if (keyStates['w']) dy--; if (keyStates['s']) dy++;
+            if (keyStates['a']) dx--; if (keyStates['d']) dx++;
             if (joyActive) { dx = joyData.x; dy = joyData.y; }
-
             if (dx !== 0 || dy !== 0) {
                 const len = Math.sqrt(dx * dx + dy * dy);
                 if (len > 0) socket.emit('playerMove', { dx: dx / len, dy: dy / len });
             }
-        }, 1000 / 30); // 30Hz Server update
+        }, 1000 / 30);
 
-        // --- UI HELPERS ---
         function updateHUD(state) {
             const p = state.players[myId];
             if (!p || !p.alive) return;
@@ -808,11 +789,9 @@
             document.getElementById('levelDisplay').innerText = state.day;
             document.getElementById('timeDisplay').innerText = state.status === 'collection' ? state.timer + 's' : 'HUNT';
 
-            const invList = document.getElementById('invList');
-            invList.innerHTML = '';
+            const invList = document.getElementById('invList'); invList.innerHTML = '';
             p.inventory.forEach((item, index) => {
-                const div = document.createElement('div');
-                div.className = 'inv-item';
+                const div = document.createElement('div'); div.className = 'inv-item';
                 div.innerHTML = `<span class="key-hint">${index + 1}</span> <span>${item.icon}</span> <span>${item.name}</span>`;
                 div.onclick = () => { socket.emit('playerAction', { type: 'useItem', index: index }); };
                 invList.appendChild(div);
@@ -824,9 +803,7 @@
                 const dogs = state.players[myId].companions || [];
                 const content = document.getElementById('dogStatsContent');
                 content.innerHTML = dogs.length ? '' : '<div style="text-align:center; padding:20px;">No dogs active.</div>';
-                dogs.forEach((dog, i) => {
-                    content.innerHTML += `<div class="dog-stat-row"><span>Dog ${i + 1}</span><span>HP: ${Math.floor(dog.hp)}</span></div>`;
-                });
+                dogs.forEach((dog, i) => { content.innerHTML += `<div class="dog-stat-row"><span>Dog ${i + 1}</span><span>HP: ${Math.floor(dog.hp)}</span></div>`; });
             }
         }
 
@@ -847,12 +824,8 @@
         }
 
         function createDot(parent, x, y, cls, scale) {
-            const d = document.createElement('div');
-            d.className = 'mm-dot ' + cls;
-            d.style.left = (x * scale) + 'px';
-            d.style.top = (y * scale) + 'px';
-            parent.appendChild(d);
-            return d;
+            const d = document.createElement('div'); d.className = 'mm-dot ' + cls;
+            d.style.left = (x * scale) + 'px'; d.style.top = (y * scale) + 'px'; parent.appendChild(d); return d;
         }
 
         function toggleDogStats() { const m = document.getElementById('dogStatsModal'); m.style.display = m.style.display === 'block' ? 'none' : 'block'; }

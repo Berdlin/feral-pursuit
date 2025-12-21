@@ -6,7 +6,6 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>Feral Pursuit - Briefing</title>
     <style>
-        /* Exact previous CSS */
         @import url('https://fonts.googleapis.com/css2?family=Cinzel:wght@400;700&family=Lato:wght@300;400&display=swap');
 
         body {
@@ -217,7 +216,6 @@
     <div class="background-fx"></div>
     <div class="container">
         <h1>FERAL PURSUIT</h1>
-
         <div class="stats-grid">
             <div class="record-box">
                 <div class="record-title">YOUR PERSONAL BEST</div>
@@ -230,7 +228,6 @@
                 <div class="record-holder" id="wrHolder">--</div>
             </div>
         </div>
-
         <p>
             The hunt approaches. You are the prey, but you may become the predator.
             <br><br>
@@ -288,7 +285,7 @@
         };
 
         socket.on('connect', () => {
-            // Request World Record
+            // Request World Record immediately
             socket.emit('getLeaderboard');
         });
 

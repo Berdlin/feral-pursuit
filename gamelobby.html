@@ -31,16 +31,17 @@
         input {
             width: 90%;
             padding: 12px;
-            margin: 10px 0;
+            margin: 5px 0 15px 0;
             background: #222;
             border: 1px solid #444;
             color: #fff;
+            text-align: center;
         }
 
         .btn {
             width: 100%;
             padding: 12px;
-            margin: 15px 0;
+            margin: 5px 0;
             background: #ff4500;
             border: none;
             font-weight: bold;
@@ -63,6 +64,15 @@
             margin-top: 5px;
             display: block;
         }
+
+        label {
+            display: block;
+            text-align: left;
+            margin-left: 5%;
+            font-size: 0.8em;
+            color: #888;
+            margin-top: 10px;
+        }
     </style>
 </head>
 
@@ -70,14 +80,21 @@
     <div class="container">
         <h1>Lobby</h1>
         <div id="connection-screen">
-            <input type="text" id="usernameInput" placeholder="Enter Your Username" required>
-            <button onclick="hostGame()" class="btn">Host Game</button>
+            <label>OPERATOR NAME</label>
+            <input type="text" id="usernameInput" placeholder="Enter Codename" required>
+
+            <hr style="border-color: #333; margin: 20px 0;">
+
+            <button onclick="hostGame()" class="btn">Host New Mission</button>
+
             <div style="position:relative; margin-top: 20px;">
-                <input type="text" id="joinCode" placeholder="Room Code (4 Digits)">
-                <button onclick="joinGame()" class="btn">Join Game</button>
+                <label>JOIN EXISTING (CODE)</label>
+                <input type="text" id="joinCode" placeholder="0000">
+                <button onclick="joinGame()" class="btn btn-green">Join Game</button>
             </div>
             <p id="error-message" style="color: #ff6347;"></p>
         </div>
+
         <div id="lobby-screen" style="display: none;">
             <h2>Room: <span id="displayCode" style="color: #4CAF50;"></span></h2>
             <span class="copy-link" onclick="copyInvite()">[Copy Invite Link]</span>
