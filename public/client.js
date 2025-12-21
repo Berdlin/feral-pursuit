@@ -25,7 +25,12 @@ function getUsername() {
     return name;
 }
 
-function displayError(msg) { errorMessage.textContent = msg; setTimeout(() => errorMessage.textContent = '', 5000); }
+function displayError(msg) {
+    if (errorMessage) {
+        errorMessage.textContent = msg;
+        setTimeout(() => errorMessage.textContent = '', 5000);
+    }
+}
 
 function hostGame() {
     socket.emit('hostGame', { username: getUsername() });
@@ -38,12 +43,12 @@ function joinGame() {
 }
 
 function startGame() {
-    if (isHost) socket.emit('startGame'); // You need to handle this in server.js to emit 'gameStarted'
+    if (isHost) socket.emit('startGame');
 }
 
 function copyInvite() {
     const code = displayCode.textContent;
-    const url = `${window.location.origin}${window.location.pathname}?code=${code}`;
+    const url = `${window.location.origin}/gameintro.html?code=${code}`;
     navigator.clipboard.writeText(url).then(() => alert("Link Copied!"));
 }
 
@@ -76,8 +81,11 @@ socket.on('lobbyUpdate', (players) => {
         li.textContent = `➤ ${name}`;
         li.style.padding = '5px';
         li.style.borderBottom = '1px solid #333';
+        li.style.color = '#ccc';
         playerList.appendChild(li);
     });
 });
 
-socket.on('gameStarted', () => { window.location.href = 'multiplay.html'; });
+socket.on('gameStarted', () => {
+    window.location.href = 'multiplay.html';
+});
