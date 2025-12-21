@@ -88,6 +88,7 @@
             flex-direction: column;
             align-items: center;
             pointer-events: none;
+            will-change: top, left;
         }
 
         .player-icon {
@@ -126,6 +127,7 @@
             justify-content: center;
             align-items: center;
             transform: translate(-50%, -50%);
+            will-change: top, left;
         }
 
         .bar-container {
@@ -155,6 +157,7 @@
             justify-content: center;
             align-items: center;
             transform: translate(-50%, -50%);
+            will-change: top, left;
         }
 
         .chest {
@@ -553,7 +556,7 @@
     <script>
         const socket = io();
         let myId = null;
-        // LOCAL PREDICTION: We trust this x/y explicitly for our own movement
+        // LOCAL MOVEMENT VARS
         let myPlayerLocal = { x: 750, y: 750, speed: 7, lastServerX: 750, lastServerY: 750 };
         let keyStates = {};
         let isMobile = /Android|iPhone|iPad/i.test(navigator.userAgent);
@@ -562,7 +565,7 @@
         const joyBase = document.getElementById('joystickZone');
         const joyKnob = document.getElementById('joystickKnob');
 
-        // Interpolation Stores for OTHER entities
+        // Interpolation Stores
         let localEntities = {};
         let lastTime = 0;
 
@@ -579,22 +582,19 @@
         });
 
         socket.on('gameStateUpdate', (state) => {
-            // FIX: Don't snap local player unless huge desync (Anti-Lag)
+            // --- FIX 2: IMPROVED ANTI-LAG / RECONCILIATION ---
             if (state.players[myId]) {
                 const sP = state.players[myId];
-                myPlayerLocal.speed = sP.speed; // Sync stats
+                myPlayerLocal.speed = sP.speed;
 
-                // Calculate distance between local prediction and server reality
+                // Calc distance between where WE are and where SERVER says we are
                 const dist = Math.hypot(sP.x - myPlayerLocal.x, sP.y - myPlayerLocal.y);
 
-                // If distance is massive (teleport/lag spike), snap. Otherwise, ignore server position for self.
-                if (dist > 150) {
+                // RELAXED SNAP: Only snap if distance is HUGE (200px), essentially a collision/cheat correction
+                // We ignore small drifts (dist < 200) so PC movement feels smooth.
+                if (dist > 200) {
                     myPlayerLocal.x = sP.x;
                     myPlayerLocal.y = sP.y;
-                } else if (dist > 20) {
-                    // Slight drift correction (very soft lerp)
-                    myPlayerLocal.x += (sP.x - myPlayerLocal.x) * 0.05;
-                    myPlayerLocal.y += (sP.y - myPlayerLocal.y) * 0.05;
                 }
             }
 
@@ -649,7 +649,7 @@
         function updateLocalEntities(state) {
             const layer = document.getElementById('entitiesLayer');
 
-            // Chests
+            // 1. Chests
             document.querySelectorAll('.chest').forEach(e => e.remove());
             state.chests.forEach(c => {
                 if (!c.opened) {
@@ -659,50 +659,77 @@
                 }
             });
 
-            // Wolves (Interpolated)
+            // --- FIX 1: WOLVES VISIBILITY ---
             state.wolves.forEach(w => {
+                const wolfKey = `w-${w.id}`; // Matches the loop key
+
                 if (w.hp <= 0) {
-                    const el = document.getElementById(`wolf-${w.id}`); if (el) el.remove(); return;
+                    const el = document.getElementById(wolfKey);
+                    if (el) el.remove();
+                    return;
                 }
-                let el = document.getElementById(`wolf-${w.id}`);
+
+                let el = document.getElementById(wolfKey);
                 if (!el) {
-                    el = document.createElement('div'); el.id = `wolf-${w.id}`; el.className = 'wolf-entity'; el.innerText = '🐺';
+                    el = document.createElement('div');
+                    el.id = wolfKey;  // !!! CRITICAL FIX: ID must match localEntities key !!!
+                    el.className = 'wolf-entity';
+                    el.innerText = '🐺';
                     el.innerHTML += `<div class="bar-container"><div class="bar-fill" id="wolf-hp-${w.id}"></div></div>`;
                     layer.appendChild(el);
-                    localEntities[`w-${w.id}`] = { x: w.x, y: w.y }; // Init pos
+                    // Init interpolation point
+                    localEntities[wolfKey] = { x: w.x, y: w.y };
                 }
-                localEntities[`w-${w.id}`].targetX = w.x;
-                localEntities[`w-${w.id}`].targetY = w.y;
+
+                // Update target for interpolation
+                if (!localEntities[wolfKey]) localEntities[wolfKey] = { x: w.x, y: w.y };
+                localEntities[wolfKey].targetX = w.x;
+                localEntities[wolfKey].targetY = w.y;
+
+                // HP Bar
                 const bar = document.getElementById(`wolf-hp-${w.id}`);
                 if (bar) bar.style.width = ((w.hp / w.maxHp) * 100) + '%';
             });
 
-            // Other Players (Interpolated)
+            // 3. Players
             for (const id in state.players) {
-                if (id === myId) continue; // Skip self (handled in renderLoop)
+                if (id === myId) continue;
                 const p = state.players[id];
-                if (!p.alive) { if (document.getElementById(`p-${id}`)) document.getElementById(`p-${id}`).remove(); continue; }
+                const pKey = `p-${id}`;
 
-                let el = document.getElementById(`p-${id}`);
+                if (!p.alive) {
+                    if (document.getElementById(pKey)) document.getElementById(pKey).remove();
+                    continue;
+                }
+
+                let el = document.getElementById(pKey);
                 if (!el) {
-                    el = document.createElement('div'); el.id = `p-${id}`; el.className = 'icon';
+                    el = document.createElement('div');
+                    el.id = pKey;
+                    el.className = 'icon';
                     el.innerHTML = `<div class="name-tag">${p.username}</div><div class="player-icon" style="background:${p.color}">🏃</div>`;
                     layer.appendChild(el);
-                    localEntities[`p-${id}`] = { x: p.x, y: p.y };
+                    localEntities[pKey] = { x: p.x, y: p.y };
                 }
-                localEntities[`p-${id}`].targetX = p.x;
-                localEntities[`p-${id}`].targetY = p.y;
+                localEntities[pKey].targetX = p.x;
+                localEntities[pKey].targetY = p.y;
                 el.style.opacity = p.invulnerable ? 0.5 : 1;
 
+                // Companions
                 p.companions.forEach((dog, idx) => {
-                    let dEl = document.getElementById(`d-${id}-${idx}`);
+                    const dKey = `d-${id}-${idx}`;
+                    let dEl = document.getElementById(dKey);
                     if (!dEl) {
-                        dEl = document.createElement('div'); dEl.id = `d-${id}-${idx}`; dEl.className = 'friendly-wolf'; dEl.innerText = '🐕';
+                        dEl = document.createElement('div');
+                        dEl.id = dKey;
+                        dEl.className = 'friendly-wolf';
+                        dEl.innerText = '🐕';
                         layer.appendChild(dEl);
-                        localEntities[`d-${id}-${idx}`] = { x: dog.x, y: dog.y };
+                        localEntities[dKey] = { x: dog.x, y: dog.y };
                     }
-                    localEntities[`d-${id}-${idx}`].targetX = dog.x;
-                    localEntities[`d-${id}-${idx}`].targetY = dog.y;
+                    if (!localEntities[dKey]) localEntities[dKey] = { x: dog.x, y: dog.y };
+                    localEntities[dKey].targetX = dog.x;
+                    localEntities[dKey].targetY = dog.y;
                 });
             }
         }
@@ -722,7 +749,7 @@
             if (dx !== 0 || dy !== 0) {
                 const len = Math.sqrt(dx * dx + dy * dy);
                 if (len > 0) {
-                    const moveStep = (myPlayerLocal.speed * (dt * 30)); // Scale to tick rate
+                    const moveStep = (myPlayerLocal.speed * (dt * 30));
                     myPlayerLocal.x += (dx / len) * moveStep;
                     myPlayerLocal.y += (dy / len) * moveStep;
                     // Clamp
@@ -748,15 +775,16 @@
             const stage = document.getElementById('stage');
             let camX = (stage.clientWidth / 2) - myPlayerLocal.x;
             let camY = (stage.clientHeight / 2) - myPlayerLocal.y;
+            // Map Bounds
             camX = Math.min(0, Math.max(camX, stage.clientWidth - 1500));
             camY = Math.min(0, Math.max(camY, stage.clientHeight - 1500));
             document.getElementById('mapViewport').style.transform = `translate3d(${camX}px, ${camY}px, 0)`;
 
             // 3. Smooth OTHERS
-            const lerpSpeed = 0.2; // Smoothness factor
+            const lerpSpeed = 0.2;
             for (const key in localEntities) {
                 const ent = localEntities[key];
-                const el = document.getElementById(key);
+                const el = document.getElementById(key); // This now works because wolf IDs match keys
                 if (el && ent.targetX !== undefined) {
                     ent.x += (ent.targetX - ent.x) * lerpSpeed;
                     ent.y += (ent.targetY - ent.y) * lerpSpeed;

@@ -31,7 +31,7 @@ const DOG_SPEED = 6.0;
 const PLAYER_SPEED = 7;
 
 const rooms = {};
-// Cache world record in memory to avoid hammering DB
+// Cache world record in memory
 let currentWorldRecord = { holder: 'Nobody', days: 0 };
 
 // --- INITIAL DB FETCH ---
@@ -175,10 +175,15 @@ function updateRoom(roomId) {
 function checkVictory(roomId) {
     const room = rooms[roomId];
     if (!room) return;
-    if (!room.wolves.some(w => w.hp > 0)) {
+
+    // Check if ALL wolves are dead (hp <= 0)
+    const allDead = room.wolves.every(w => w.hp <= 0);
+
+    if (allDead) {
         room.level++;
         room.status = 'collection';
         room.timerStart = Date.now();
+        // Heal Players slightly for next round
         for (const pid in room.players) {
             if (room.players[pid].alive) {
                 room.players[pid].hp = Math.min(room.players[pid].maxHp, room.players[pid].hp + 20);
@@ -201,7 +206,6 @@ function checkGameOver(roomId) {
 // --- SOCKET LOGIC ---
 io.on('connection', (socket) => {
 
-    // Send Leaderboard immediately upon connection
     socket.on('getLeaderboard', () => {
         socket.emit('leaderboardData', currentWorldRecord);
     });
@@ -347,13 +351,9 @@ io.on('connection', (socket) => {
     socket.on('reportScore', async (data) => {
         if (!supabase) return;
         try {
-            // Insert score
             await supabase.from('leaderboard').insert([{ username: data.username, days_survived: data.days }]);
-
-            // Check if it's a new WR
             if (data.days > currentWorldRecord.days) {
                 currentWorldRecord = { holder: data.username, days: data.days };
-                // Broadcast to everyone connected to server
                 io.emit('leaderboardData', currentWorldRecord);
             }
         } catch (e) { console.log("DB Error", e); }
