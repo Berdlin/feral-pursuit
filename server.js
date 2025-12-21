@@ -23,12 +23,11 @@ app.get('/', (req, res) => {
     res.sendFile(__dirname + '/gameintro.html');
 });
 
-// --- GAME CONSTANTS (Matched to realgame.html) ---
 const MAP_SIZE = 1500;
 const WOLF_SPEED = 4.5;
 const DOG_SPEED = 6.0;
 const PLAYER_SPEED = 7;
-const LOOT_RADIUS = 80; // Increased sensitivity
+const LOOT_RADIUS = 80;
 
 const rooms = {};
 let currentWorldRecord = { holder: 'Nobody', days: 0 };
@@ -42,7 +41,6 @@ async function fetchWorldRecord() {
 }
 fetchWorldRecord();
 
-// --- GAME LOOP (30 Ticks/Sec) ---
 setInterval(() => {
     for (const roomId in rooms) {
         updateRoom(roomId);
@@ -55,13 +53,11 @@ function updateRoom(roomId) {
 
     const elapsed = (Date.now() - room.timerStart) / 1000;
 
-    // Phase Change
     if (room.status === 'collection' && elapsed > 25) {
         room.status = 'chase';
         io.to(roomId).emit('alert', { msg: "THE HUNT BEGINS!", color: "red" });
     }
 
-    // Wolf AI
     if (room.status === 'chase') {
         room.wolves.forEach(wolf => {
             if (wolf.hp <= 0) return;
@@ -69,7 +65,6 @@ function updateRoom(roomId) {
             let target = null;
             let minDist = 9999;
 
-            // Find closest target (Player or Dog)
             for (const pid in room.players) {
                 const p = room.players[pid];
                 if (!p.alive) continue;
@@ -88,12 +83,11 @@ function updateRoom(roomId) {
                 wolf.x += Math.cos(angle) * WOLF_SPEED;
                 wolf.y += Math.sin(angle) * WOLF_SPEED;
 
-                // Attack Logic
                 if (minDist < 35) {
                     const now = Date.now();
                     if (now > (wolf.nextAttack || 0)) {
                         wolf.nextAttack = now + 500;
-                        if (target.username) { // It's a player
+                        if (target.username) {
                             if (!target.invulnerable) {
                                 target.hp -= wolf.dmg;
                                 target.invulnerable = true;
@@ -106,7 +100,7 @@ function updateRoom(roomId) {
                                     checkGameOver(roomId);
                                 }
                             }
-                        } else { // It's a dog
+                        } else {
                             target.hp -= wolf.dmg;
                             if (target.hp <= 0) {
                                 for (const pid in room.players) {
@@ -120,7 +114,6 @@ function updateRoom(roomId) {
         });
     }
 
-    // Companion AI
     for (const pid in room.players) {
         const p = room.players[pid];
         if (!p.alive) continue;
@@ -174,7 +167,6 @@ function checkVictory(roomId) {
         room.level++;
         room.status = 'collection';
         room.timerStart = Date.now();
-        // Slight Heal
         for (const pid in room.players) {
             if (room.players[pid].alive) {
                 room.players[pid].hp = Math.min(room.players[pid].maxHp, room.players[pid].hp + 20);
@@ -188,7 +180,6 @@ function checkVictory(roomId) {
 function checkGameOver(roomId) {
     const room = rooms[roomId];
     if (!room) return;
-    // Only over if ALL players are dead
     const anyAlive = Object.values(room.players).some(p => p.alive);
     if (!anyAlive) {
         room.status = 'over';
@@ -196,9 +187,7 @@ function checkGameOver(roomId) {
     }
 }
 
-// --- SOCKET LOGIC ---
 io.on('connection', (socket) => {
-
     socket.on('getLeaderboard', () => { socket.emit('leaderboardData', currentWorldRecord); });
 
     socket.on('verifyIdentity', (data) => {
@@ -249,8 +238,6 @@ io.on('connection', (socket) => {
         if (!room) return;
         const p = room.players[socket.id];
         if (p && p.alive) {
-            // Anti-Lag / Anti-Cheat: basic clamping but trust client mostly for smoothness
-            // We apply the movement delta to the server position
             p.x = Math.max(20, Math.min(MAP_SIZE - 20, p.x + data.dx * p.speed));
             p.y = Math.max(20, Math.min(MAP_SIZE - 20, p.y + data.dy * p.speed));
         }
@@ -260,7 +247,6 @@ io.on('connection', (socket) => {
         const room = getRoom(socket);
         if (!room) return;
         const p = room.players[socket.id];
-        // Allow actions if alive OR if using a revive totem while dead
         if (!p) return;
 
         if (data.type === 'attack' && p.alive) {
@@ -276,7 +262,6 @@ io.on('connection', (socket) => {
             room.chests.forEach(c => {
                 if (!c.opened && Math.hypot(p.x - c.x, p.y - c.y) < LOOT_RADIUS) {
                     c.opened = true;
-                    // Logic Parity: Trap Handling
                     if (c.reward.type.includes('hp_loss') || c.reward.type.includes('curse') || c.reward.type.includes('hp_half')) {
                         if (c.reward.type === 'hp_loss') p.hp += c.reward.val;
                         else if (c.reward.type === 'hp_half') p.hp = Math.floor(p.hp * c.reward.val);
@@ -300,23 +285,18 @@ io.on('connection', (socket) => {
             const item = p.inventory[data.index];
             if (!item) return;
 
-            // Logic Parity: Revive Other
             if (item.type === 'revive') {
                 const deadPlayers = Object.values(room.players).filter(pl => !pl.alive && pl.id !== p.id);
-                // If I am dead, I can use it on myself
                 if (!p.alive) {
-                    // Self Revive
                     p.alive = true; p.hp = 50;
                     p.inventory.splice(data.index, 1);
                     io.to(room.id).emit('alert', { msg: `${p.username} USED A TOTEM!`, color: "#00ff00" });
-                    socket.emit('youRevived'); // Tell client to hide death screen
+                    socket.emit('youRevived');
                 } else {
-                    // Reviving others
                     if (deadPlayers.length === 0) socket.emit('alert', { msg: "NO DEAD CREW MEMBERS", color: "orange" });
                     else socket.emit('openReviveModal', deadPlayers.map(pl => ({ id: pl.id, name: pl.username })));
                 }
             } else if (p.alive) {
-                // Standard items
                 applyItemEffect(p, item, room.level);
                 p.inventory.splice(data.index, 1);
             }
@@ -338,7 +318,8 @@ io.on('connection', (socket) => {
         const room = getRoom(socket);
         if (!room) return;
         const p = room.players[socket.id];
-        if (data.action === 'spawnDogs') for (let i = 0; i < data.val; i++) p.companions.push({ x: p.x, y: p.y, hp: 150 + (room.level * 20), maxHp: 150, dmg: 15 + (room.level * 2), nextAttack: 0 });
+        // FIXED HP Logic for spawned dogs
+        if (data.action === 'spawnDogs') for (let i = 0; i < data.val; i++) p.companions.push({ x: p.x, y: p.y, hp: 150 + (room.level * 20), maxHp: 150 + (room.level * 20), dmg: 15 + (room.level * 2), nextAttack: 0 });
         else if (data.action === 'killWolves') { room.wolves.forEach(w => w.hp = 0); checkVictory(room.id); }
         else if (data.action === 'setStats') { if (data.hp) p.hp = parseInt(data.hp); if (data.dmg) p.dmg = parseInt(data.dmg); if (data.speed) p.speed = parseInt(data.speed); }
     });
@@ -367,7 +348,6 @@ io.on('connection', (socket) => {
     });
 });
 
-// --- HELPERS ---
 function getRoomCode(socket) { return Array.from(socket.rooms).filter(r => r !== socket.id)[0]; }
 function getRoom(socket) { const c = getRoomCode(socket); return c ? rooms[c] : null; }
 function getPlayerNames(room) { return Object.values(room.players).map(p => p.username); }
@@ -384,10 +364,9 @@ function createPlayer(id, name) {
 
 function spawnEntities(room, level) {
     room.wolves = [];
-    // Logic Parity: Spawn counts
     const count = (level === 1) ? 1 : Math.min(level + 1, 50);
-    const wolfHP = level * 80 + 50; // Matched realgame.html
-    const wolfDMG = level * 5 + 5;  // Matched realgame.html
+    const wolfHP = level * 80 + 50;
+    const wolfDMG = level * 5 + 5;
 
     for (let i = 0; i < count; i++) {
         room.wolves.push({
@@ -409,10 +388,7 @@ function spawnEntities(room, level) {
 }
 
 function generateReward(level) {
-    // Exact probabilities from realgame.html
     const rand = Math.random() * 100;
-
-    // Tiny chance for Revive Totem (Exclusive to multiplayer, keeps game fun)
     if (Math.random() < 0.05) return { name: "Revive Totem", type: "revive", icon: "✝️" };
 
     let badChance = Math.max(10, 50 - (level * 2));

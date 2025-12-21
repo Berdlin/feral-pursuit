@@ -50,7 +50,6 @@
             will-change: transform;
         }
 
-        /* --- UI ELEMENTS --- */
         #minimap-container {
             position: absolute;
             top: 20px;
@@ -92,7 +91,6 @@
             will-change: top, left;
         }
 
-        /* Players - High Z-Index */
         .player-icon {
             font-size: 2em;
             width: 40px;
@@ -117,7 +115,6 @@
             font-weight: bold;
         }
 
-        /* Wolves - High Z-Index */
         .wolf-entity {
             font-size: 2.5em;
             width: 50px;
@@ -132,6 +129,37 @@
             align-items: center;
             transform: translate(-50%, -50%);
             will-change: top, left;
+        }
+
+        /* --- COOLER DOGS --- */
+        .friendly-wolf {
+            font-size: 1.5em;
+            width: 36px;
+            height: 36px;
+            background: radial-gradient(circle, #00bfff 0%, #005577 100%);
+            border: 2px solid #fff;
+            border-radius: 50%;
+            position: absolute;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            z-index: 19;
+            box-shadow: 0 0 15px #00bfff, 0 0 5px #fff;
+            /* Neon Glow */
+            animation: pulseDog 1.5s infinite alternate;
+            /* Breathing Effect */
+        }
+
+        @keyframes pulseDog {
+            from {
+                transform: translate(-50%, -50%) scale(1);
+                box-shadow: 0 0 10px #00bfff;
+            }
+
+            to {
+                transform: translate(-50%, -50%) scale(1.1);
+                box-shadow: 0 0 20px #00bfff, 0 0 10px #fff;
+            }
         }
 
         .bar-container {
@@ -149,22 +177,6 @@
             background: red;
         }
 
-        .friendly-wolf {
-            font-size: 1.5em;
-            width: 30px;
-            height: 30px;
-            background: #00bfff;
-            border-radius: 50%;
-            border: 2px solid #fff;
-            position: absolute;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            transform: translate(-50%, -50%);
-            z-index: 19;
-        }
-
-        /* Chests - LOWER Z-Index so players walk OVER them */
         .chest {
             font-size: 1.8em;
             z-index: 5;
@@ -172,7 +184,6 @@
             transform: translate(-50%, -50%);
         }
 
-        /* HUD */
         .hud-top {
             position: absolute;
             top: 20px;
@@ -211,7 +222,6 @@
             border: 2px solid transparent;
         }
 
-        /* INVENTORY SCROLL FIX */
         .inventory-sidebar {
             width: 280px;
             background-color: #111;
@@ -238,8 +248,6 @@
             padding-bottom: 20px;
         }
 
-        /* Scrollable */
-
         .inv-item {
             background: #222;
             margin: 8px;
@@ -264,7 +272,6 @@
             font-size: 0.8em;
         }
 
-        /* MODALS */
         #dogStatsModal {
             position: absolute;
             top: 50%;
@@ -331,7 +338,6 @@
             font-weight: bold;
         }
 
-        /* DEATH / REVIVE MODALS */
         #reviveModal {
             position: fixed;
             top: 0;
@@ -392,7 +398,6 @@
             font-size: 1.5em;
         }
 
-        /* MOBILE CONTROLS */
         .mobile-controls-layer {
             position: absolute;
             top: 0;
@@ -617,7 +622,6 @@
         const joyBase = document.getElementById('joystickZone');
         const joyKnob = document.getElementById('joystickKnob');
 
-        // Interpolation
         let localEntities = {};
         let lastTime = 0;
 
@@ -634,15 +638,11 @@
         });
 
         socket.on('gameStateUpdate', (state) => {
-            // FIX: Lag & Drift
             if (state.players[myId]) {
                 const sP = state.players[myId];
                 myPlayerLocal.speed = sP.speed;
                 myPlayerLocal.alive = sP.alive;
 
-                // Sync Position:
-                // If distance > 100px (lag spike/collision), snap immediately
-                // If distance > 20px, lerp smoothly
                 const dist = Math.hypot(sP.x - myPlayerLocal.x, sP.y - myPlayerLocal.y);
                 if (dist > 100) {
                     myPlayerLocal.x = sP.x;
@@ -661,7 +661,7 @@
         socket.on('playerDied', (data) => {
             if (data.id === myId) {
                 document.getElementById('deathOverlay').style.display = 'flex';
-                keyStates = {}; // Disable movement
+                keyStates = {};
             }
         });
 
@@ -715,7 +715,6 @@
             const layer = document.getElementById('entitiesLayer');
             const seenIds = new Set();
 
-            // 1. Chests
             document.querySelectorAll('.chest').forEach(e => e.remove());
             state.chests.forEach(c => {
                 if (!c.opened) {
@@ -725,45 +724,47 @@
                 }
             });
 
-            // 2. Wolves
             state.wolves.forEach(w => {
                 const wKey = `w-${w.id}`;
                 seenIds.add(wKey);
-
-                if (w.hp <= 0) {
-                    const el = document.getElementById(wKey);
-                    if (el) el.remove();
-                    return;
-                }
-
+                if (w.hp <= 0) { const el = document.getElementById(wKey); if (el) el.remove(); return; }
                 let el = document.getElementById(wKey);
                 if (!el) {
-                    el = document.createElement('div'); el.id = wKey; el.className = 'wolf-entity';
-                    el.innerText = '🐺';
+                    el = document.createElement('div'); el.id = wKey; el.className = 'wolf-entity'; el.innerText = '🐺';
                     el.innerHTML += `<div class="bar-container"><div class="bar-fill" id="wolf-hp-${w.id}"></div></div>`;
                     layer.appendChild(el);
                     localEntities[wKey] = { x: w.x, y: w.y };
                 }
-
                 if (!localEntities[wKey]) localEntities[wKey] = { x: w.x, y: w.y };
-                localEntities[wKey].targetX = w.x;
-                localEntities[wKey].targetY = w.y;
-
-                const bar = document.getElementById(`wolf-hp-${w.id}`);
-                if (bar) bar.style.width = ((w.hp / w.maxHp) * 100) + '%';
+                localEntities[wKey].targetX = w.x; localEntities[wKey].targetY = w.y;
+                const bar = document.getElementById(`wolf-hp-${w.id}`); if (bar) bar.style.width = ((w.hp / w.maxHp) * 100) + '%';
             });
 
-            // 3. Players & Companions
+            // --- FIXED RENDERING LOOP ---
             for (const id in state.players) {
-                if (id === myId) continue;
                 const p = state.players[id];
+
+                // 1. Render Companions (Even my own)
+                p.companions.forEach((dog, idx) => {
+                    const dKey = `d-${id}-${idx}`;
+                    seenIds.add(dKey);
+                    let dEl = document.getElementById(dKey);
+                    if (!dEl) {
+                        dEl = document.createElement('div'); dEl.id = dKey; dEl.className = 'friendly-wolf';
+                        dEl.innerText = '🐕'; // Emoji overlay
+                        layer.appendChild(dEl);
+                        localEntities[dKey] = { x: dog.x, y: dog.y };
+                    }
+                    if (!localEntities[dKey]) localEntities[dKey] = { x: dog.x, y: dog.y };
+                    localEntities[dKey].targetX = dog.x; localEntities[dKey].targetY = dog.y;
+                });
+
+                // 2. Render Player Character (Skip mine to avoid jitter)
+                if (id === myId) continue;
+
                 const pKey = `p-${id}`;
                 seenIds.add(pKey);
-
-                if (!p.alive) {
-                    const el = document.getElementById(pKey); if (el) el.remove();
-                    continue;
-                }
+                if (!p.alive) { const el = document.getElementById(pKey); if (el) el.remove(); continue; }
 
                 let el = document.getElementById(pKey);
                 if (!el) {
@@ -773,32 +774,13 @@
                     localEntities[pKey] = { x: p.x, y: p.y };
                 }
                 if (!localEntities[pKey]) localEntities[pKey] = { x: p.x, y: p.y };
-                localEntities[pKey].targetX = p.x;
-                localEntities[pKey].targetY = p.y;
+                localEntities[pKey].targetX = p.x; localEntities[pKey].targetY = p.y;
                 el.style.opacity = p.invulnerable ? 0.5 : 1;
-
-                p.companions.forEach((dog, idx) => {
-                    const dKey = `d-${id}-${idx}`;
-                    seenIds.add(dKey);
-                    let dEl = document.getElementById(dKey);
-                    if (!dEl) {
-                        dEl = document.createElement('div'); dEl.id = dKey; dEl.className = 'friendly-wolf';
-                        dEl.innerText = '🐕';
-                        layer.appendChild(dEl);
-                        localEntities[dKey] = { x: dog.x, y: dog.y };
-                    }
-                    if (!localEntities[dKey]) localEntities[dKey] = { x: dog.x, y: dog.y };
-                    localEntities[dKey].targetX = dog.x;
-                    localEntities[dKey].targetY = dog.y;
-                });
             }
 
-            // Cleanup Stale Entities (Fix memory leak)
             for (const key in localEntities) {
                 if (!seenIds.has(key) && key !== `p-${myId}`) {
-                    const el = document.getElementById(key);
-                    if (el) el.remove();
-                    delete localEntities[key];
+                    const el = document.getElementById(key); if (el) el.remove(); delete localEntities[key];
                 }
             }
         }
@@ -808,7 +790,6 @@
             const dt = (timestamp - lastTime) / 1000;
             lastTime = timestamp;
 
-            // My Movement
             if (myPlayerLocal.alive) {
                 let dx = 0, dy = 0;
                 if (keyStates['w']) dy--; if (keyStates['s']) dy++;
@@ -827,7 +808,6 @@
                 }
             }
 
-            // Draw ME
             let myEl = document.getElementById(`p-${myId}`);
             if (!myEl && myId) {
                 myEl = document.createElement('div'); myEl.id = `p-${myId}`; myEl.className = 'icon';
@@ -841,7 +821,6 @@
                 myEl.style.display = myPlayerLocal.alive ? 'flex' : 'none';
             }
 
-            // Camera
             const stage = document.getElementById('stage');
             let camX = (stage.clientWidth / 2) - myPlayerLocal.x;
             let camY = (stage.clientHeight / 2) - myPlayerLocal.y;
@@ -849,7 +828,6 @@
             camY = Math.min(0, Math.max(camY, stage.clientHeight - 1500));
             document.getElementById('mapViewport').style.transform = `translate3d(${camX}px, ${camY}px, 0)`;
 
-            // Interpolate Others
             const lerpSpeed = 0.2;
             for (const key in localEntities) {
                 const ent = localEntities[key];
@@ -857,16 +835,13 @@
                 if (el && ent.targetX !== undefined) {
                     ent.x += (ent.targetX - ent.x) * lerpSpeed;
                     ent.y += (ent.targetY - ent.y) * lerpSpeed;
-                    el.style.left = ent.x + 'px';
-                    el.style.top = ent.y + 'px';
+                    el.style.left = ent.x + 'px'; el.style.top = ent.y + 'px';
                 }
             }
-
             requestAnimationFrame(renderLoop);
         }
         requestAnimationFrame(renderLoop);
 
-        // Input Sender (30Hz)
         setInterval(() => {
             if (!myPlayerLocal.alive) return;
             let dx = 0, dy = 0;
@@ -881,14 +856,13 @@
 
         function updateHUD(state) {
             const p = state.players[myId];
-            if (!p) return; // Might be dead or connecting
+            if (!p) return;
 
             document.getElementById('hpDisplay').innerText = Math.max(0, Math.ceil(p.hp));
             document.getElementById('dmgDisplay').innerText = p.dmg;
             document.getElementById('levelDisplay').innerText = state.day;
             document.getElementById('timeDisplay').innerText = state.status === 'collection' ? state.timer + 's' : 'HUNT';
 
-            // Inventory
             const invList = document.getElementById('invList');
             invList.innerHTML = '';
 
@@ -903,7 +877,6 @@
                 invList.appendChild(div);
             });
 
-            // Self Revive Logic
             const selfReviveBtn = document.getElementById('selfReviveArea');
             if (!p.alive && hasTotem) {
                 selfReviveBtn.style.display = 'block';
