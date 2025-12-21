@@ -6,7 +6,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>Feral Pursuit - Multiplayer</title>
     <style>
-        /* Keeping original CSS */
+        /* Exact previous styles */
         body {
             font-family: 'Segoe UI', sans-serif;
             background-color: #080808;
@@ -467,11 +467,24 @@
 
         if (isMobile) document.getElementById('mobileLayer').style.display = 'block';
 
+        // --- CRITICAL FIX: JOIN LOGIC ---
         socket.on('connect', () => {
             myId = socket.id;
             const u = localStorage.getItem('gameUsername') || "Guest";
+            const code = localStorage.getItem('gameRoomCode');
+
+            // Send Auth
             const p = localStorage.getItem('gamePass') || "";
             socket.emit('verifyIdentity', { username: u, password: p });
+
+            // ATTEMPT REJOIN USING SAVED CODE
+            if (code) {
+                console.log("Attempting to join running game:", code);
+                socket.emit('joinGame', code, { username: u });
+            } else {
+                console.log("No room code found. Returning to lobby.");
+                window.location.href = 'gamelobby.html';
+            }
         });
 
         socket.on('gameStateUpdate', (state) => {
@@ -513,7 +526,6 @@
             const layer = document.getElementById('entitiesLayer');
             layer.innerHTML = '';
 
-            // Chests
             state.chests.forEach(c => {
                 if (c.opened) return;
                 const el = document.createElement('div');
@@ -522,13 +534,11 @@
                 layer.appendChild(el);
             });
 
-            // Wolves
             state.wolves.forEach(w => {
                 if (w.hp <= 0) return;
                 const el = document.createElement('div');
                 el.className = 'wolf-entity'; el.innerText = '🐺';
                 el.style.left = w.x + 'px'; el.style.top = w.y + 'px';
-                // HP Bar
                 const hpBar = document.createElement('div');
                 hpBar.style.cssText = `position:absolute; top:-10px; width:40px; height:4px; background:red;`;
                 hpBar.innerHTML = `<div style="width:${(w.hp / w.maxHp) * 100}%; height:100%; background:#0f0;"></div>`;
@@ -536,7 +546,6 @@
                 layer.appendChild(el);
             });
 
-            // Players
             for (const id in state.players) {
                 const p = state.players[id];
                 if (!p.alive) continue;
@@ -565,7 +574,6 @@
                 }
             }
 
-            // Camera
             if (state.players[myId]) {
                 const me = state.players[myId];
                 let camX = (document.getElementById('stage').clientWidth / 2) - me.x;
@@ -599,7 +607,6 @@
             const mm = document.getElementById('minimap-container');
             const scale = 150 / 1500;
             mm.innerHTML = '';
-
             state.wolves.forEach(w => { if (w.hp > 0) createDot(mm, w.x, w.y, 'mm-wolf', scale); });
             state.chests.forEach(c => { if (!c.opened) createDot(mm, c.x, c.y, 'mm-chest', scale); });
             for (const id in state.players) {
@@ -626,9 +633,7 @@
             if (e.key.toLowerCase() === 'e') sendAction('loot');
             if (e.key === ' ') sendAction('attack');
             if (e.key.toLowerCase() === 'q') toggleInventory();
-            if (e.key.toLowerCase() === 'a' && e.shiftKey) {
-                document.getElementById('adminPanel').style.display = 'block';
-            }
+            if (e.key.toLowerCase() === 'a' && e.shiftKey) { document.getElementById('adminPanel').style.display = 'block'; }
         });
         window.addEventListener('keyup', (e) => keyStates[e.key.toLowerCase()] = false);
 
@@ -641,9 +646,7 @@
             if (keyStates['s']) dy++;
             if (keyStates['a']) dx--;
             if (keyStates['d']) dx++;
-
             if (joyActive) { dx = joyData.x; dy = joyData.y; }
-
             if (dx !== 0 || dy !== 0) {
                 const len = Math.sqrt(dx * dx + dy * dy);
                 if (len > 0) socket.emit('playerMove', { dx: dx / len, dy: dy / len });
@@ -653,11 +656,7 @@
         function emitAdmin(action) {
             const data = { action: action };
             if (action === 'spawnDogs') data.val = parseInt(document.getElementById('admDogCount').value);
-            if (action === 'setStats') {
-                data.hp = document.getElementById('admHp').value;
-                data.dmg = document.getElementById('admDmg').value;
-                data.speed = document.getElementById('admSpeed').value;
-            }
+            if (action === 'setStats') { data.hp = document.getElementById('admHp').value; data.dmg = document.getElementById('admDmg').value; data.speed = document.getElementById('admSpeed').value; }
             socket.emit('adminCmd', data);
         }
 
