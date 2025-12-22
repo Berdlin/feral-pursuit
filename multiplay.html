@@ -218,7 +218,7 @@
             border-radius: 0 0 8px 8px;
         }
 
-        /* Record Party Overlay - Fixed Z-Index */
+        /* Record Party Overlay */
         #celebrationOverlay {
             position: fixed;
             top: 0;
@@ -779,7 +779,18 @@
             const hist = document.getElementById('chatHistory');
             const div = document.createElement('div');
             div.className = 'chat-msg';
-            div.innerHTML = `<span class="chat-user" style="color:${data.color}">${data.user}:</span> ${data.text}`;
+
+            // SECURITY FIX: Prevent XSS by creating elements safely
+            const userSpan = document.createElement('span');
+            userSpan.className = 'chat-user';
+            userSpan.style.color = data.color;
+            userSpan.innerText = data.user + ":";
+
+            const msgNode = document.createTextNode(" " + data.text);
+
+            div.appendChild(userSpan);
+            div.appendChild(msgNode);
+
             hist.appendChild(div);
             hist.scrollTop = hist.scrollHeight;
         });
@@ -798,10 +809,12 @@
                 myPlayerLocal.speed = sP.speed;
                 myPlayerLocal.alive = sP.alive;
 
-                // --- GLITCH FIX: Relaxed Prediction ---
+                // --- RUBBER-BAND FIX: Smooth Sync ---
+                // We only "snap" the player back if they are WAY out of sync (e.g., > 200px)
+                // Otherwise, we trust the client's local movement for smoothness.
                 const dist = Math.hypot(sP.x - myPlayerLocal.x, sP.y - myPlayerLocal.y);
-                // Increased tolerance to 150px before snapping back to prevent rubber-banding
-                if (dist > 150) {
+                if (dist > 200) {
+                    // Too far desynced - snap to server pos
                     myPlayerLocal.x = sP.x;
                     myPlayerLocal.y = sP.y;
                 }
@@ -910,7 +923,11 @@
                 let el = document.getElementById(pKey);
                 if (!el) {
                     el = document.createElement('div'); el.id = pKey; el.className = 'icon';
-                    el.innerHTML = `<div class="name-tag">${p.username}</div><div class="player-icon" style="background:${p.color}">🏃</div>`;
+
+                    // SECURITY FIX: Escape user names here too
+                    const safeName = p.username.replace(/</g, "&lt;").replace(/>/g, "&gt;");
+                    el.innerHTML = `<div class="name-tag">${safeName}</div><div class="player-icon" style="background:${p.color}">🏃</div>`;
+
                     layer.appendChild(el); localEntities[pKey] = { x: p.x, y: p.y };
                 }
                 if (!localEntities[pKey]) localEntities[pKey] = { x: p.x, y: p.y };
@@ -955,7 +972,8 @@
             if (!myEl && myId) {
                 myEl = document.createElement('div'); myEl.id = `p-${myId}`; myEl.className = 'icon';
                 const user = localStorage.getItem('gameUsername') || "Me";
-                myEl.innerHTML = `<div class="name-tag" style="color:#00ff00">${user}</div><div class="player-icon" style="background:#ff4500; border-color:#00ff00;">🏃</div>`;
+                const safeUser = user.replace(/</g, "&lt;").replace(/>/g, "&gt;");
+                myEl.innerHTML = `<div class="name-tag" style="color:#00ff00">${safeUser}</div><div class="player-icon" style="background:#ff4500; border-color:#00ff00;">🏃</div>`;
                 document.getElementById('entitiesLayer').appendChild(myEl);
             }
             if (myEl) {
