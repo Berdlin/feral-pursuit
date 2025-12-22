@@ -6,14 +6,12 @@ const server = http.createServer(app);
 const { Server } = require("socket.io");
 const io = new Server(server);
 const { createClient } = require('@supabase/supabase-js');
-const escapeHtml = require('escape-html'); // You may need to run: npm install escape-html
 
 let supabase = null;
-// SECURITY: Only use keys from the environment variables, never hardcoded files
 if (process.env.SUPABASE_URL && process.env.SUPABASE_SERVICE_ROLE_KEY) {
     try {
         supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_ROLE_KEY);
-        console.log("Supabase connected securely.");
+        console.log("Supabase connected.");
     } catch (err) {
         console.log("Supabase connection failed:", err.message);
     }
@@ -26,7 +24,7 @@ app.get('/', (req, res) => {
 });
 
 const MAP_SIZE = 1500;
-const WOLF_SPEED = 5.0;
+const WOLF_SPEED = 4.5;
 const DOG_SPEED = 6.0;
 const PLAYER_SPEED = 7;
 const LOOT_RADIUS = 80;
@@ -37,22 +35,11 @@ let currentWorldRecord = { holder: 'Nobody', days: 0 };
 async function fetchWorldRecord() {
     if (!supabase) return;
     try {
-        const { data } = await supabase
-            .from('leaderboard')
-            .select('*')
-            .order('days_survived', { ascending: false })
-            .limit(1)
-            .single();
-
-        if (data) {
-            currentWorldRecord = { holder: data.username, days: data.days_survived };
-        }
+        const { data } = await supabase.from('leaderboard').select('*').order('days_survived', { ascending: false }).limit(1).single();
+        if (data) currentWorldRecord = { holder: data.username, days: data.days_survived };
     } catch (e) { console.log("DB Fetch Error", e); }
 }
 fetchWorldRecord();
-
-// ... (Game Loop Interval code stays the same, omitted for brevity) ... 
-// PASTE YOUR EXISTING updateRoom AND checkVictory FUNCTIONS HERE
 
 setInterval(() => {
     for (const roomId in rooms) {
@@ -60,11 +47,7 @@ setInterval(() => {
     }
 }, 1000 / 30);
 
-// RE-ADD YOUR updateRoom, checkVictory, checkGameOver functions here exactly as they were
-// I am keeping the logic essentially the same but ensure you verify inputs below.
-
 function updateRoom(roomId) {
-    // (Your existing updateRoom logic goes here. It is generally safe provided inputs are sanitized)
     const room = rooms[roomId];
     if (!room || room.status === 'lobby' || room.status === 'over') return;
 
@@ -72,7 +55,7 @@ function updateRoom(roomId) {
 
     if (room.status === 'collection' && elapsed > 25) {
         room.status = 'chase';
-        io.to(roomId).emit('alert', { msg: "THE BLOOD MOON RISES!", color: "red" });
+        io.to(roomId).emit('alert', { msg: "THE HUNT BEGINS!", color: "red" });
     }
 
     if (room.status === 'chase') {
@@ -100,18 +83,15 @@ function updateRoom(roomId) {
                 wolf.x += Math.cos(angle) * WOLF_SPEED;
                 wolf.y += Math.sin(angle) * WOLF_SPEED;
 
-                if (minDist < 50) {
+                if (minDist < 35) {
                     const now = Date.now();
                     if (now > (wolf.nextAttack || 0)) {
                         wolf.nextAttack = now + 500;
-
                         if (target.username) {
                             if (!target.invulnerable) {
                                 target.hp -= wolf.dmg;
                                 target.invulnerable = true;
                                 setTimeout(() => { if (target) target.invulnerable = false; }, 1000);
-                                io.to(roomId).emit('fx', { type: 'blood', x: target.x, y: target.y });
-
                                 if (target.hp <= 0) {
                                     target.hp = 0;
                                     target.alive = false;
@@ -134,7 +114,6 @@ function updateRoom(roomId) {
         });
     }
 
-    // Move Dogs
     for (const pid in room.players) {
         const p = room.players[pid];
         if (!p.alive) continue;
@@ -158,7 +137,7 @@ function updateRoom(roomId) {
                 dog.y += Math.sin(angle) * DOG_SPEED;
             }
 
-            if (targetWolf && dist < 60) {
+            if (targetWolf && dist < 50) {
                 const now = Date.now();
                 if (now > (dog.nextAttack || 0)) {
                     targetWolf.hp -= dog.dmg;
@@ -175,7 +154,6 @@ function updateRoom(roomId) {
         chests: room.chests,
         status: room.status,
         day: room.level,
-        bloodMoon: room.status === 'chase',
         timer: Math.max(0, 25 - Math.floor(elapsed))
     });
 }
@@ -191,7 +169,7 @@ function checkVictory(roomId) {
         room.timerStart = Date.now();
         for (const pid in room.players) {
             if (room.players[pid].alive) {
-                room.players[pid].hp = Math.min(room.players[pid].maxHp, room.players[pid].hp + 30);
+                room.players[pid].hp = Math.min(room.players[pid].maxHp, room.players[pid].hp + 20);
             }
         }
         spawnEntities(room, room.level);
@@ -209,24 +187,12 @@ function checkGameOver(roomId) {
     }
 }
 
-
-// --- SECURITY FIX: ADMIN & AUTH ---
-
 io.on('connection', (socket) => {
     socket.on('getLeaderboard', () => { socket.emit('leaderboardData', currentWorldRecord); });
 
     socket.on('verifyIdentity', (data) => {
-        // SECURITY FIX: Never check passwords against a hardcoded string in the file!
-        // We now check against a server environment variable.
-        const adminUser = process.env.ADMIN_USER || "beka_ei"; // Default to beka_ei if not set
-        const adminPass = process.env.ADMIN_PASSWORD; // MUST BE SET IN KOYEB
-
-        if (data.username && data.username.toLowerCase() === adminUser) {
-            if (data.password === adminPass) {
-                socket.emit('authResult', { success: true, msg: "ADMIN VERIFIED" });
-            } else {
-                socket.emit('authResult', { success: false, msg: "ACCESS DENIED: WRONG PASSWORD" });
-            }
+        if (data.username && data.username.toLowerCase() === "beka_ei" && data.password !== "bereketisthebest") {
+            socket.emit('authResult', { success: false, msg: "ACCESS DENIED" });
         } else {
             socket.emit('authResult', { success: true, msg: "VERIFIED" });
         }
@@ -235,10 +201,8 @@ io.on('connection', (socket) => {
     socket.on('hostGame', (data) => {
         const code = Math.floor(1000 + Math.random() * 9000).toString();
         socket.join(code);
-        // Clean the username to prevent XSS on server side storage
-        const safeName = data.username ? data.username.replace(/[<>]/g, "") : "Hunter";
         rooms[code] = createRoom(code);
-        rooms[code].players[socket.id] = createPlayer(socket.id, safeName);
+        rooms[code].players[socket.id] = createPlayer(socket.id, data.username || "Hunter");
         socket.emit('roomCreated', code);
         io.to(code).emit('lobbyUpdate', getPlayerNames(rooms[code]));
     });
@@ -246,8 +210,7 @@ io.on('connection', (socket) => {
     socket.on('joinGame', (code, data) => {
         if (rooms[code] && rooms[code].status !== 'over') {
             socket.join(code);
-            const safeName = data.username ? data.username.replace(/[<>]/g, "") : "Hunter";
-            rooms[code].players[socket.id] = createPlayer(socket.id, safeName);
+            rooms[code].players[socket.id] = createPlayer(socket.id, data.username || "Hunter");
             socket.emit('joinSuccess', code);
             if (rooms[code].status !== 'lobby') {
                 socket.emit('gameStarted');
@@ -270,39 +233,13 @@ io.on('connection', (socket) => {
         }
     });
 
-    socket.on('sendChat', (msg) => {
-        const roomCode = getRoomCode(socket);
-        if (roomCode && rooms[roomCode]) {
-            const p = rooms[roomCode].players[socket.id];
-            if (p) {
-                // SECURITY FIX: Limit length and sanitize input
-                if (typeof msg !== 'string') return;
-                const cleanMsg = msg.substring(0, 100).replace(/</g, "&lt;").replace(/>/g, "&gt;");
-                io.to(roomCode).emit('chatMsg', { user: p.username, text: cleanMsg, color: p.color });
-            }
-        }
-    });
-
-    // ... (Your existing playerMove and playerAction logic stays here) ...
-    // Paste your original logic for 'playerMove', 'playerAction', 'adminCmd', 'disconnect', 'reportScore'
-    // BUT ensure that in 'reportScore', you use the `supabase` variable securely initialized at the top.
-
-    // Copy the rest of your logic from lines 212-321 in your original file here.
-    // It is safe enough provided the supabase key is rotated.
-
     socket.on('playerMove', (data) => {
         const room = getRoom(socket);
         if (!room) return;
         const p = room.players[socket.id];
         if (p && p.alive) {
-            const maxStep = p.speed * 1.5;
-            let len = Math.hypot(data.dx, data.dy);
-            if (len > 1) {
-                data.dx /= len;
-                data.dy /= len;
-            }
-            p.x = Math.max(20, Math.min(MAP_SIZE - 20, p.x + (data.dx * p.speed)));
-            p.y = Math.max(20, Math.min(MAP_SIZE - 20, p.y + (data.dy * p.speed)));
+            p.x = Math.max(20, Math.min(MAP_SIZE - 20, p.x + data.dx * p.speed));
+            p.y = Math.max(20, Math.min(MAP_SIZE - 20, p.y + data.dy * p.speed));
         }
     });
 
@@ -315,7 +252,7 @@ io.on('connection', (socket) => {
         if (data.type === 'attack' && p.alive) {
             io.to(room.id).emit('fx', { type: 'attack', x: p.x, y: p.y });
             room.wolves.forEach(w => {
-                if (w.hp > 0 && Math.hypot(w.x - p.x, w.y - p.y) < 140) {
+                if (w.hp > 0 && Math.hypot(w.x - p.x, w.y - p.y) < 100) {
                     w.hp -= p.dmg;
                     if (w.hp <= 0) checkVictory(room.id);
                 }
@@ -325,7 +262,7 @@ io.on('connection', (socket) => {
             room.chests.forEach(c => {
                 if (!c.opened && Math.hypot(p.x - c.x, p.y - c.y) < LOOT_RADIUS) {
                     c.opened = true;
-                    if (c.reward.type.includes('curse') || c.reward.type.includes('hp_loss') || c.reward.type.includes('hp_half')) {
+                    if (c.reward.type.includes('hp_loss') || c.reward.type.includes('curse') || c.reward.type.includes('hp_half')) {
                         if (c.reward.type === 'hp_loss') p.hp += c.reward.val;
                         else if (c.reward.type === 'hp_half') p.hp = Math.floor(p.hp * c.reward.val);
                         else if (c.reward.type === 'curse_dmg') p.dmg = Math.max(1, p.dmg + c.reward.val);
@@ -381,8 +318,7 @@ io.on('connection', (socket) => {
         const room = getRoom(socket);
         if (!room) return;
         const p = room.players[socket.id];
-        // Note: Real security would verify p.username is actually the admin again here
-        // but since authentication happens on join, this is acceptable for a small game.
+        // FIXED HP Logic for spawned dogs
         if (data.action === 'spawnDogs') for (let i = 0; i < data.val; i++) p.companions.push({ x: p.x, y: p.y, hp: 150 + (room.level * 20), maxHp: 150 + (room.level * 20), dmg: 15 + (room.level * 2), nextAttack: 0 });
         else if (data.action === 'killWolves') { room.wolves.forEach(w => w.hp = 0); checkVictory(room.id); }
         else if (data.action === 'setStats') { if (data.hp) p.hp = parseInt(data.hp); if (data.dmg) p.dmg = parseInt(data.dmg); if (data.speed) p.speed = parseInt(data.speed); }
@@ -407,7 +343,6 @@ io.on('connection', (socket) => {
             if (data.days > currentWorldRecord.days) {
                 currentWorldRecord = { holder: data.username, days: data.days };
                 io.emit('leaderboardData', currentWorldRecord);
-                io.emit('recordBroken', { holder: data.username, days: data.days });
             }
         } catch (e) { console.log("DB Error", e); }
     });
@@ -426,8 +361,6 @@ function createPlayer(id, name) {
         alive: true, invulnerable: false, inventory: [], companions: []
     };
 }
-
-// ... (Paste generateReward, applyItemEffect, spawnEntities exactly as they were in previous server.js) ...
 
 function spawnEntities(room, level) {
     room.wolves = [];
