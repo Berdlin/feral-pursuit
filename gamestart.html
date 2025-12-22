@@ -4,51 +4,69 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Feral Pursuit</title>
+    <title>Feral Pursuit - Identity</title>
     <style>
+        @import url('https://fonts.googleapis.com/css2?family=Courier+Prime&family=Cinzel:wght@700&display=swap');
+
         body {
-            background: #000;
-            color: #0f0;
-            font-family: monospace;
+            background-color: #000;
+            color: #ccc;
+            font-family: 'Courier Prime', monospace;
+            min-height: 100vh;
             display: flex;
             justify-content: center;
             align-items: center;
-            height: 100vh;
-            margin: 0;
         }
 
         .container {
-            border: 1px solid #333;
+            width: 90%;
+            max-width: 500px;
             padding: 40px;
-            background: rgba(10, 10, 10, 0.9);
-            width: 300px;
-            text-align: center;
-            box-shadow: 0 0 20px rgba(0, 255, 0, 0.1);
+            border: 1px solid #333;
+            background-color: rgba(10, 15, 10, 0.95);
+            box-shadow: 0 0 30px rgba(0, 255, 0, 0.1);
         }
 
-        input {
-            width: 100%;
-            padding: 10px;
-            margin-top: 10px;
-            background: #111;
-            border: 1px solid #444;
-            color: #fff;
-            text-align: center;
+        h1 {
+            font-family: 'Cinzel', serif;
+            color: #ddd;
+            border-bottom: 2px solid #ff4500;
         }
 
-        button {
+        label {
+            display: block;
+            margin-top: 15px;
+            color: #888;
+            font-size: 0.9em;
+        }
+
+        input,
+        select {
             width: 100%;
             padding: 15px;
-            margin-top: 20px;
-            background: #111;
+            margin-top: 5px;
+            background: #000;
+            border: 1px solid #444;
             color: #0f0;
-            border: 1px solid #0f0;
-            cursor: pointer;
-            font-weight: bold;
+            font-family: 'Courier Prime', monospace;
+            font-size: 1.2em;
+            box-sizing: border-box;
         }
 
-        button:hover {
-            background: #0f0;
+        .btn {
+            width: 100%;
+            padding: 20px;
+            margin-top: 30px;
+            background-color: #1a1a1a;
+            color: #fff;
+            border: 1px solid #ff4500;
+            font-family: 'Cinzel', serif;
+            font-size: 1.2em;
+            cursor: pointer;
+        }
+
+        .btn:hover {
+            background-color: #ff4500;
             color: #000;
         }
     </style>
@@ -56,26 +74,49 @@
 
 <body>
     <div class="container">
-        <h1>IDENTITY</h1>
-        <input type="text" id="username" placeholder="CODENAME" oninput="check()">
+        <h1>IDENTITY VERIFICATION</h1>
+
+        <label>OPERATOR CLASS</label>
+        <select id="classSelect">
+            <option value="scout">SCOUT (Fast, Low HP)</option>
+            <option value="medic">MEDIC (Regen, Balanced)</option>
+            <option value="tank">TANK (High HP, Slow)</option>
+        </select>
+
+        <label>ENTER CODENAME</label>
+        <input type="text" id="username" placeholder="USER_ID..." oninput="checkName()">
+
         <div id="passSection" style="display:none;">
-            <input type="password" id="password" placeholder="ADMIN PASS KEY">
+            <label style="color:#ff4500">ACCESS CODE REQUIRED</label>
+            <input type="password" id="password" placeholder="••••••••••">
         </div>
-        <button onclick="start()">CONNECT</button>
-        <p id="msg" style="color:red; margin-top:10px;"></p>
+
+        <button class="btn" onclick="start()">INITIATE SEQUENCE</button>
+        <p id="msg" style="color: red; margin-top: 15px;"></p>
     </div>
+
     <script>
-        function check() {
+        function checkName() {
             const val = document.getElementById('username').value.trim();
-            // UPDATED USERNAME CHECK
-            document.getElementById('passSection').style.display = (val.toLowerCase() === 'bereketisthebest') ? 'block' : 'none';
+            // Show password if username is exactly beka_ei
+            document.getElementById('passSection').style.display =
+                (val.toLowerCase() === 'beka_ei') ? 'block' : 'none';
         }
+
         function start() {
             const user = document.getElementById('username').value.trim();
-            if (!user) return document.getElementById('msg').innerText = "REQUIRED";
+            const pass = document.getElementById('password').value.trim();
+            const cls = document.getElementById('classSelect').value;
+
+            if (!user) { document.getElementById('msg').innerText = "IDENTITY REQUIRED"; return; }
+
             localStorage.setItem('gameUsername', user);
-            localStorage.setItem('gamePass', document.getElementById('password').value);
-            window.location.href = 'realgame.html';
+            localStorage.setItem('gamePass', pass);
+            localStorage.setItem('gameClass', cls);
+
+            document.getElementById('msg').style.color = 'lime';
+            document.getElementById('msg').innerText = "CONNECTING...";
+            setTimeout(() => window.location.href = 'realgame.html', 500);
         }
     </script>
 </body>
