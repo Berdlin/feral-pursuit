@@ -3,20 +3,23 @@
 
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Feral Pursuit</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Feral Pursuit - Multiplayer</title>
     <style>
         body {
             margin: 0;
-            background: #050505;
+            background: #080808;
             overflow: hidden;
             font-family: 'Segoe UI', sans-serif;
+            user-select: none;
         }
 
+        /* GAME STAGE */
         #gameStage {
             position: relative;
             width: 100vw;
             height: 100vh;
+            background: #050505;
             display: flex;
             justify-content: center;
             align-items: center;
@@ -26,55 +29,61 @@
             width: 1500px;
             height: 1500px;
             position: absolute;
-            background: #111;
-            background-image: linear-gradient(#222 1px, transparent 1px), linear-gradient(90deg, #222 1px, transparent 1px);
-            background-size: 50px 50px;
+            top: 0;
+            left: 0;
+            background: radial-gradient(circle at 50% 50%, #1a1a1a 0%, #000 100%);
+            background-image: linear-gradient(rgba(255, 255, 255, 0.03) 1px, transparent 1px), linear-gradient(90deg, rgba(255, 255, 255, 0.03) 1px, transparent 1px);
+            background-size: 100px 100px;
             border: 5px solid #333;
+            transition: transform 0.1s linear;
+            /* Smooth Camera */
         }
 
+        /* ENTITIES */
         .entity {
             position: absolute;
             transform: translate(-50%, -50%);
-            pointer-events: none;
-            transition: all 0.1s linear;
+            transition: left 0.2s linear, top 0.2s linear;
         }
 
-        /* PLAYER */
-        .player {
+        .player-dot {
             width: 40px;
             height: 40px;
             border-radius: 50%;
-            border: 2px solid white;
+            border: 2px solid #fff;
+            box-shadow: 0 0 10px rgba(255, 255, 255, 0.3);
             display: flex;
             justify-content: center;
             align-items: center;
             font-size: 20px;
             z-index: 10;
-            box-shadow: 0 0 10px white;
         }
 
         .name-tag {
             position: absolute;
-            top: -25px;
+            top: -20px;
+            left: 50%;
+            transform: translateX(-50%);
             background: rgba(0, 0, 0, 0.7);
             color: white;
             padding: 2px 5px;
-            border-radius: 3px;
+            border-radius: 4px;
             font-size: 12px;
             white-space: nowrap;
         }
 
-        /* WOLVES & ITEMS */
         .wolf {
             width: 50px;
             height: 50px;
-            background: #500;
-            border-radius: 50%;
+            background: #400;
             border: 2px solid red;
-            z-index: 5;
+            border-radius: 50%;
             display: flex;
             justify-content: center;
             align-items: center;
+            font-size: 25px;
+            box-shadow: 0 0 15px red;
+            z-index: 5;
         }
 
         .chest {
@@ -82,269 +91,390 @@
             z-index: 4;
         }
 
-        /* OBSTACLES */
-        .obstacle {
-            position: absolute;
-            transform: translate(-50%, -50%);
-            z-index: 3;
-            border-radius: 50%;
+        /* NEW CHAT UI - REALISTIC & SLEEK */
+        #chatContainer {
+            position: fixed;
+            bottom: 20px;
+            left: 20px;
+            width: 350px;
+            height: 250px;
             display: flex;
-            justify-content: center;
-            align-items: center;
-            font-weight: bold;
+            flex-direction: column;
+            z-index: 100;
+            /* Glassmorphism Effect */
+            background: rgba(20, 20, 20, 0.65);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 12px;
+            box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.37);
+            font-family: 'Consolas', 'Courier New', monospace;
+            transition: opacity 0.3s;
         }
 
-        .tree {
-            background: #003300;
-            border: 2px solid #00ff00;
-            color: #00ff00;
+        #chatHistory {
+            flex-grow: 1;
+            overflow-y: auto;
+            padding: 15px;
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            scrollbar-width: thin;
+            scrollbar-color: #444 transparent;
         }
 
-        .rock {
-            background: #333;
-            border: 2px solid #777;
-            color: #777;
+        .chat-msg {
+            font-size: 0.9em;
+            line-height: 1.4;
+            color: #ddd;
+            text-shadow: 1px 1px 0 #000;
+            animation: fadeIn 0.3s ease;
         }
 
-        /* ATTACK ANIMATION */
-        .attack-ripple {
-            position: absolute;
-            width: 100px;
-            height: 100px;
-            border: 3px solid rgba(255, 255, 255, 0.8);
-            border-radius: 50%;
-            transform: translate(-50%, -50%);
-            animation: ripple 0.3s ease-out forwards;
-            pointer-events: none;
-            z-index: 20;
-        }
-
-        @keyframes ripple {
+        @keyframes fadeIn {
             from {
-                width: 0;
-                height: 0;
-                opacity: 1;
+                opacity: 0;
+                transform: translateY(5px);
             }
 
             to {
-                width: 140px;
-                height: 140px;
-                opacity: 0;
+                opacity: 1;
+                transform: translateY(0);
             }
         }
 
-        /* UI */
-        #hud {
+        .chat-user {
+            font-weight: bold;
+            margin-right: 5px;
+            filter: brightness(1.2);
+        }
+
+        #chatInput {
+            background: rgba(0, 0, 0, 0.3);
+            border: none;
+            border-top: 1px solid rgba(255, 255, 255, 0.1);
+            color: white;
+            padding: 15px;
+            outline: none;
+            border-radius: 0 0 12px 12px;
+            font-family: inherit;
+        }
+
+        #chatInput:focus {
+            background: rgba(0, 0, 0, 0.5);
+        }
+
+        /* HUD */
+        .hud {
             position: fixed;
-            top: 10px;
+            top: 20px;
             left: 50%;
             transform: translateX(-50%);
             background: rgba(0, 0, 0, 0.8);
             padding: 10px 20px;
-            color: white;
-            border-radius: 20px;
+            border-radius: 30px;
+            border: 1px solid #333;
+            color: #ccc;
             z-index: 100;
+            display: flex;
+            gap: 15px;
             font-weight: bold;
-            border: 1px solid #444;
         }
 
-        #alert {
+        .hud span {
+            color: #ff4500;
+        }
+
+        #alertBox {
             position: fixed;
-            top: 60px;
+            top: 80px;
             width: 100%;
             text-align: center;
             font-size: 2em;
             font-weight: bold;
-            text-shadow: 0 0 10px black;
-            z-index: 100;
+            text-shadow: 0 0 10px #000;
             pointer-events: none;
-            transition: opacity 0.5s;
+            z-index: 150;
             opacity: 0;
+            transition: opacity 0.5s;
+        }
+
+        /* MOBILE */
+        #mobileControls {
+            display: none;
+            position: fixed;
+            width: 100%;
+            height: 100%;
+            top: 0;
+            left: 0;
+            pointer-events: none;
+            z-index: 110;
+        }
+
+        .joy-zone {
+            position: absolute;
+            bottom: 50px;
+            left: 50px;
+            width: 120px;
+            height: 120px;
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 50%;
+            pointer-events: auto;
+        }
+
+        .joy-knob {
+            width: 50px;
+            height: 50px;
+            background: rgba(255, 69, 0, 0.8);
+            border-radius: 50%;
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            pointer-events: none;
+        }
+
+        .mob-btn {
+            width: 70px;
+            height: 70px;
+            background: rgba(50, 50, 50, 0.8);
+            border: 2px solid white;
+            border-radius: 50%;
+            position: absolute;
+            bottom: 50px;
+            right: 30px;
+            pointer-events: auto;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            font-size: 1.5em;
+            color: white;
+        }
+
+        .mob-btn:active {
+            background: #ff4500;
+        }
+
+        #btnLoot {
+            bottom: 140px;
         }
     </style>
 </head>
 
 <body>
-    <div id="alert"></div>
-    <div id="hud">HP: <span id="hpDisp">100</span> | CLASS: <span id="classDisp">-</span></div>
+    <div id="alertBox"></div>
+    <div class="hud">
+        Day: <span id="dayDisp">1</span> | HP: <span id="hpDisp">100</span> | Time: <span id="timeDisp">--</span>
+    </div>
+
+    <div id="chatContainer">
+        <div id="chatHistory"></div>
+        <input type="text" id="chatInput" placeholder="Radio channel...">
+    </div>
 
     <div id="gameStage">
         <div id="mapLayer">
-            <div id="groundObjects"></div>
             <div id="entities"></div>
-            <div id="fxLayer"></div>
         </div>
+    </div>
+
+    <div id="mobileControls">
+        <div class="joy-zone" id="joyBase">
+            <div class="joy-knob" id="joyKnob"></div>
+        </div>
+        <div class="mob-btn" id="btnAttack" ontouchstart="sendAct('attack')">⚔️</div>
+        <div class="mob-btn" id="btnLoot" ontouchstart="sendAct('loot')">👋</div>
     </div>
 
     <script src="/socket.io/socket.io.js"></script>
     <script>
         const socket = io();
-        const myUser = localStorage.getItem('gameUsername');
-        const myPass = localStorage.getItem('gamePass');
-        const myClass = localStorage.getItem('gameClass') || 'scout';
+        const myUser = localStorage.getItem('gameUsername') || "Guest";
+        const myPass = localStorage.getItem('gamePass') || "";
         let myId = null;
 
-        // --- SOUND SYSTEM ---
-        // Instructions: Upload files named 'step.mp3', 'attack.mp3', 'howl.mp3' to your public folder
-        const sounds = {
-            step: new Audio(), // Placeholder
-            attack: new Audio(),
-            howl: new Audio()
-        };
-        function playSound(name) {
-            // Uncomment below if you upload files
-            // if(sounds[name]) { sounds[name].currentTime = 0; sounds[name].play().catch(e=>{}); }
-        }
-
-        // --- MOVEMENT VARS ---
+        // --- SMOOTH MOVEMENT VARS ---
+        let myPos = { x: 750, y: 750 }; // Local prediction
+        let serverPos = { x: 750, y: 750 }; // Last known server pos
         let keyState = {};
-        let myPos = { x: 750, y: 750 };
-        let players = {};
+        let lastTime = 0;
+        const SPEED = 7;
 
-        // --- CONNECT ---
+        // Setup
+        const map = document.getElementById('mapLayer');
+        const ents = document.getElementById('entities');
+        const isMob = /Android|iPhone/i.test(navigator.userAgent);
+        if (isMob) document.getElementById('mobileControls').style.display = 'block';
+
         socket.on('connect', () => {
             myId = socket.id;
             socket.emit('verifyIdentity', { username: myUser, password: myPass });
             const code = localStorage.getItem('gameRoomCode');
-            if (code) socket.emit('joinGame', code, { username: myUser, classType: myClass });
+            if (code) socket.emit('joinGame', code, { username: myUser });
         });
 
-        // --- INPUT HANDLING (WASD + ARROWS) ---
-        window.addEventListener('keydown', (e) => {
-            const k = e.key.toLowerCase();
-            // Arrow keys mapping
-            if (k === 'w' || k === 'arrowup') keyState['w'] = true;
-            if (k === 'a' || k === 'arrowleft') keyState['a'] = true;
-            if (k === 's' || k === 'arrowdown') keyState['s'] = true;
-            if (k === 'd' || k === 'arrowright') keyState['d'] = true;
+        // --- THE FIX: CLIENT SIDE PREDICTION LOOP ---
+        function gameLoop(timestamp) {
+            if (!lastTime) lastTime = timestamp;
+            const dt = (timestamp - lastTime) / 1000;
+            lastTime = timestamp;
 
-            if (e.key === ' ' || k === 'enter') {
-                socket.emit('playerAction', { type: 'attack' });
-                showAttackVisual(myPos.x, myPos.y); // Instant local feedback
-                playSound('attack');
-            }
-            if (k === 'e') socket.emit('playerAction', { type: 'loot' });
-        });
-
-        window.addEventListener('keyup', (e) => {
-            const k = e.key.toLowerCase();
-            if (k === 'w' || k === 'arrowup') keyState['w'] = false;
-            if (k === 'a' || k === 'arrowleft') keyState['a'] = false;
-            if (k === 's' || k === 'arrowdown') keyState['s'] = false;
-            if (k === 'd' || k === 'arrowright') keyState['d'] = false;
-        });
-
-        // --- GAME LOOP ---
-        function loop() {
-            // Local Prediction Movement
+            // 1. Apply Input Locally (Instant Response)
             let dx = 0, dy = 0;
-            if (keyState['w']) dy = -1;
-            if (keyState['s']) dy = 1;
-            if (keyState['a']) dx = -1;
-            if (keyState['d']) dx = 1;
+            if (keyState['w']) dy -= 1; if (keyState['s']) dy += 1;
+            if (keyState['a']) dx -= 1; if (keyState['d']) dx += 1;
+
+            // Joystick
+            if (joyActive) { dx = joyData.x; dy = joyData.y; }
 
             if (dx !== 0 || dy !== 0) {
-                socket.emit('playerMove', { dx, dy });
-                // We trust the server for position to avoid desync with obstacles, 
-                // but we could predict here if needed. For now, rely on server update for "Tank/Scout" speeds.
+                // Normalize diagonal
+                const len = Math.sqrt(dx * dx + dy * dy);
+                if (len > 1) { dx /= len; dy /= len; } // Joy is already normalized usually
+
+                // Move local pos
+                myPos.x += dx * SPEED * (dt * 30); // scale to approx 30fps speed
+                myPos.y += dy * SPEED * (dt * 30);
+
+                // Clamp to map
+                myPos.x = Math.max(20, Math.min(1480, myPos.x));
+                myPos.y = Math.max(20, Math.min(1480, myPos.y));
+
+                // Send to server (Rate limited in server usually, but we send raw input here)
+                // Sending delta to server is safer, but sending intent is smoother
+                socket.emit('playerMove', { dx: dx, dy: dy });
             }
 
-            updateCamera();
-            requestAnimationFrame(loop);
-        }
-        requestAnimationFrame(loop);
-
-        // --- RENDER ---
-        socket.on('gameStateUpdate', (s) => {
-            // 1. Render Obstacles (Static)
-            const ground = document.getElementById('groundObjects');
-            if (ground.innerHTML === '') {
-                s.obstacles.forEach(o => {
-                    const d = document.createElement('div');
-                    d.className = `obstacle ${o.type}`;
-                    d.style.width = (o.r * 2) + 'px'; d.style.height = (o.r * 2) + 'px';
-                    d.style.left = o.x + 'px'; d.style.top = o.y + 'px';
-                    d.innerText = o.type === 'tree' ? '🌲' : '🪨';
-                    ground.appendChild(d);
-                });
+            // 2. Reconciliation (Soft Correction)
+            // If we are too far from server, gently pull back. If WAY too far, snap.
+            const dist = Math.hypot(myPos.x - serverPos.x, myPos.y - serverPos.y);
+            if (dist > 200) {
+                // Teleport (Lag spike or cheat correction)
+                myPos.x = serverPos.x;
+                myPos.y = serverPos.y;
+            } else if (dist > 20) {
+                // Smooth drift correction (Rubber band fix)
+                myPos.x += (serverPos.x - myPos.x) * 0.1;
+                myPos.y += (serverPos.y - myPos.y) * 0.1;
             }
 
-            // 2. Render Entities
-            const entLayer = document.getElementById('entities');
-            entLayer.innerHTML = ''; // Clear frame
-
-            // Players
-            for (const pid in s.players) {
-                const p = s.players[pid];
-                if (!p.alive) continue;
-
-                // Interpolate for smoothness
-                if (pid === myId) {
-                    myPos.x = p.x; myPos.y = p.y; // Sync local
-                    document.getElementById('hpDisp').innerText = Math.floor(p.hp);
-                    document.getElementById('classDisp').innerText = p.classType.toUpperCase();
-                }
-
-                const el = document.createElement('div');
-                el.className = 'entity player';
-                el.style.left = p.x + 'px'; el.style.top = p.y + 'px';
-                el.style.background = p.classType === 'medic' ? '#0ff' : (p.classType === 'tank' ? '#444' : '#f00');
-                el.innerHTML = `<div class="name-tag">${p.username}</div>👤`;
-                entLayer.appendChild(el);
+            // 3. Render Me
+            const myEl = document.getElementById('p-' + myId);
+            if (myEl) {
+                myEl.style.left = myPos.x + 'px';
+                myEl.style.top = myPos.y + 'px';
             }
 
-            // Wolves
-            s.wolves.forEach(w => {
-                if (w.hp <= 0) return;
-                const el = document.createElement('div');
-                el.className = 'entity wolf';
-                el.style.left = w.x + 'px'; el.style.top = w.y + 'px';
-                el.innerText = '🐺';
-                entLayer.appendChild(el);
-            });
-
-            // Chests
-            s.chests.forEach(c => {
-                if (!c.opened) {
-                    const el = document.createElement('div'); el.className = 'entity chest';
-                    el.style.left = c.x + 'px'; el.style.top = c.y + 'px';
-                    el.innerText = '📦';
-                    entLayer.appendChild(el);
-                }
-            });
-        });
-
-        socket.on('fx', (data) => {
-            if (data.type === 'attack') showAttackVisual(data.x, data.y);
-            if (data.type === 'blood') { /* Add blood particle logic here if desired */ }
-        });
-
-        socket.on('alert', (d) => {
-            const a = document.getElementById('alert');
-            a.innerText = d.msg; a.style.color = d.color; a.style.opacity = 1;
-            setTimeout(() => a.style.opacity = 0, 2000);
-        });
-
-        function showAttackVisual(x, y) {
-            const layer = document.getElementById('fxLayer');
-            const d = document.createElement('div');
-            d.className = 'attack-ripple';
-            d.style.left = x + 'px'; d.style.top = y + 'px';
-            layer.appendChild(d);
-            setTimeout(() => d.remove(), 400);
-        }
-
-        function updateCamera() {
+            // 4. Camera Follow
             const stage = document.getElementById('gameStage');
-            const map = document.getElementById('mapLayer');
             let cx = (stage.clientWidth / 2) - myPos.x;
             let cy = (stage.clientHeight / 2) - myPos.y;
-
-            // Boundary clamping
+            // Clamp camera
             cx = Math.min(0, Math.max(cx, stage.clientWidth - 1500));
             cy = Math.min(0, Math.max(cy, stage.clientHeight - 1500));
-
             map.style.transform = `translate3d(${cx}px, ${cy}px, 0)`;
+
+            requestAnimationFrame(gameLoop);
+        }
+        requestAnimationFrame(gameLoop);
+
+        // --- SERVER UPDATES ---
+        socket.on('gameStateUpdate', (s) => {
+            // HUD
+            document.getElementById('dayDisp').innerText = s.day;
+            document.getElementById('timeDisp').innerText = s.timer;
+            if (s.players[myId]) document.getElementById('hpDisp').innerText = Math.floor(s.players[myId].hp);
+
+            // Update Server Pos for Reconciliation
+            if (s.players[myId]) {
+                serverPos.x = s.players[myId].x;
+                serverPos.y = s.players[myId].y;
+            }
+
+            // Render Others (Interpolated in CSS transition)
+            ents.innerHTML = '';
+
+            // ME (Already rendered in loop, but need to create DOM if missing)
+            if (!document.getElementById('p-' + myId)) {
+                const d = document.createElement('div'); d.id = 'p-' + myId; d.className = 'entity player-dot';
+                d.style.background = '#0f0'; d.innerHTML = '🏃';
+                ents.appendChild(d);
+            }
+
+            // OTHERS
+            for (const pid in s.players) {
+                if (pid === myId || !s.players[pid].alive) continue;
+                const p = s.players[pid];
+                const d = document.createElement('div'); d.className = 'entity player-dot';
+                d.style.left = p.x + 'px'; d.style.top = p.y + 'px'; d.style.borderColor = p.color;
+                d.innerHTML = `<div class="name-tag">${p.username}</div>🏃`;
+                ents.appendChild(d);
+            }
+
+            // WOLVES
+            s.wolves.forEach(w => {
+                if (w.hp > 0) {
+                    const d = document.createElement('div'); d.className = 'entity wolf';
+                    d.style.left = w.x + 'px'; d.style.top = w.y + 'px'; d.innerText = '🐺';
+                    ents.appendChild(d);
+                }
+            });
+
+            // CHESTS
+            s.chests.forEach(c => {
+                if (!c.opened) {
+                    const d = document.createElement('div'); d.className = 'entity chest';
+                    d.style.left = c.x + 'px'; d.style.top = c.y + 'px'; d.innerText = '📦';
+                    ents.appendChild(d);
+                }
+            });
+        });
+
+        // --- CONTROLS ---
+        window.onkeydown = (e) => {
+            if (document.activeElement === document.getElementById('chatInput')) return;
+            keyState[e.key.toLowerCase()] = true;
+            if (e.key === 'e') sendAct('loot');
+            if (e.key === ' ') sendAct('attack');
+        };
+        window.onkeyup = (e) => keyState[e.key.toLowerCase()] = false;
+
+        function sendAct(t) { socket.emit('playerAction', { type: t }); }
+
+        // --- CHAT ---
+        const chatIn = document.getElementById('chatInput');
+        chatIn.onkeydown = (e) => {
+            if (e.key === 'Enter' && chatIn.value.trim()) {
+                socket.emit('sendChat', chatIn.value.trim());
+                chatIn.value = '';
+            }
+        };
+        socket.on('chatMsg', (data) => {
+            const h = document.getElementById('chatHistory');
+            const d = document.createElement('div'); d.className = 'chat-msg';
+            d.innerHTML = `<span class="chat-user" style="color:${data.color}">${data.user}:</span> ${data.text}`;
+            h.appendChild(d);
+            h.scrollTop = h.scrollHeight;
+        });
+        socket.on('alert', (d) => {
+            const a = document.getElementById('alertBox');
+            a.innerText = d.msg; a.style.color = d.color; a.style.opacity = 1;
+            setTimeout(() => a.style.opacity = 0, 3000);
+        });
+
+        // --- JOYSTICK LOGIC ---
+        let joyActive = false; let joyData = { x: 0, y: 0 };
+        const jBase = document.getElementById('joyBase'); const jKnob = document.getElementById('joyKnob');
+        jBase.addEventListener('touchstart', (e) => { joyActive = true; moveJoy(e.touches[0]); }, { passive: false });
+        jBase.addEventListener('touchmove', (e) => { e.preventDefault(); if (joyActive) moveJoy(e.touches[0]); }, { passive: false });
+        jBase.addEventListener('touchend', () => { joyActive = false; jKnob.style.transform = 'translate(-50%,-50%)'; joyData = { x: 0, y: 0 }; });
+        function moveJoy(t) {
+            const r = jBase.getBoundingClientRect();
+            let x = t.clientX - (r.left + r.width / 2); let y = t.clientY - (r.top + r.height / 2);
+            const d = Math.sqrt(x * x + y * y); const max = r.width / 2;
+            if (d > max) { x = (x / d) * max; y = (y / d) * max; }
+            jKnob.style.transform = `translate(calc(-50% + ${x}px), calc(-50% + ${y}px))`;
+            joyData = { x: x / max, y: y / max };
         }
     </script>
 </body>
