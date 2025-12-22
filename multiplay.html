@@ -64,43 +64,48 @@
             transition: opacity 2s ease-in-out;
         }
 
-        #minimap-container {
-            position: absolute;
-            top: 20px;
-            right: 20px;
-            width: 150px;
-            height: 150px;
-            background: rgba(0, 0, 0, 0.9);
-            border: 2px solid #555;
-            z-index: 180;
-            border-radius: 4px;
-            pointer-events: none;
-            display: block;
+        /* Animation for movement */
+        @keyframes walkBob {
+            0% {
+                transform: scale(1);
+            }
+
+            50% {
+                transform: scale(1.1);
+            }
+
+            100% {
+                transform: scale(1);
+            }
         }
 
-        .mm-dot {
-            position: absolute;
-            width: 4px;
-            height: 4px;
+        .walking {
+            animation: walkBob 0.3s infinite;
+        }
+
+        /* Scarier Wolf Logic */
+        .wolf-entity {
+            font-size: 2.5em;
+            width: 50px;
+            height: 50px;
+            background: #200;
             border-radius: 50%;
+            border: 2px solid #f00;
+            z-index: 20;
+            position: absolute;
+            display: flex;
+            justify-content: center;
+            align-items: center;
             transform: translate(-50%, -50%);
+            box-shadow: 0 0 15px #f00;
+            transition: all 0.5s;
         }
 
-        .mm-wolf {
-            background-color: #f00;
-            width: 5px;
-            height: 5px;
-        }
-
-        .mm-chest {
-            background-color: #ffd700;
-        }
-
-        .mm-player {
-            width: 6px;
-            height: 6px;
-            border: 1px solid white;
-            z-index: 5;
+        .nightmare-wolf {
+            background: #400 !important;
+            border-color: #fff !important;
+            box-shadow: 0 0 30px red, 0 0 10px white !important;
+            transform: translate(-50%, -50%) scale(1.2) !important;
         }
 
         .icon {
@@ -138,51 +143,6 @@
             font-weight: bold;
         }
 
-        /* UPDATED WOLF */
-        .wolf-entity {
-            font-size: 2.5em;
-            width: 50px;
-            height: 50px;
-            background: #200;
-            border-radius: 50%;
-            border: 2px solid #f00;
-            z-index: 20;
-            position: absolute;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            transform: translate(-50%, -50%);
-            box-shadow: 0 0 15px #f00;
-        }
-
-        .friendly-wolf {
-            font-size: 1.5em;
-            width: 36px;
-            height: 36px;
-            background: radial-gradient(circle, #00bfff 0%, #005577 100%);
-            border: 2px solid #fff;
-            border-radius: 50%;
-            position: absolute;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            z-index: 19;
-            box-shadow: 0 0 15px #00bfff, 0 0 5px #fff;
-            animation: pulseDog 1.5s infinite alternate;
-        }
-
-        @keyframes pulseDog {
-            from {
-                transform: translate(-50%, -50%) scale(1);
-                box-shadow: 0 0 10px #00bfff;
-            }
-
-            to {
-                transform: translate(-50%, -50%) scale(1.1);
-                box-shadow: 0 0 20px #00bfff, 0 0 10px #fff;
-            }
-        }
-
         .bar-container {
             position: absolute;
             top: -10px;
@@ -203,6 +163,125 @@
             z-index: 5;
             position: absolute;
             transform: translate(-50%, -50%);
+        }
+
+        /* Chat UI */
+        #chatContainer {
+            position: absolute;
+            bottom: 20px;
+            left: 20px;
+            width: 300px;
+            height: 200px;
+            background: rgba(0, 0, 0, 0.8);
+            border: 1px solid #444;
+            z-index: 170;
+            display: none;
+            flex-direction: column;
+            border-radius: 5px;
+            pointer-events: auto;
+        }
+
+        #chatHistory {
+            flex-grow: 1;
+            overflow-y: auto;
+            padding: 10px;
+            font-size: 0.8em;
+            color: #ccc;
+        }
+
+        .chat-msg {
+            margin-bottom: 4px;
+            word-wrap: break-word;
+        }
+
+        .chat-user {
+            font-weight: bold;
+        }
+
+        #chatInput {
+            background: #222;
+            border: none;
+            border-top: 1px solid #444;
+            color: white;
+            padding: 8px;
+            width: 100%;
+            box-sizing: border-box;
+            outline: none;
+        }
+
+        /* Record Party Overlay */
+        #celebrationOverlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            z-index: 300;
+            display: none;
+            background: radial-gradient(circle, rgba(255, 215, 0, 0.2), transparent);
+            justify-content: center;
+            align-items: center;
+            flex-direction: column;
+        }
+
+        #celebrationText {
+            font-size: 3em;
+            color: gold;
+            text-shadow: 0 0 20px yellow;
+            font-weight: bold;
+            animation: pop 0.5s infinite alternate;
+            text-align: center;
+        }
+
+        @keyframes pop {
+            from {
+                transform: scale(1);
+            }
+
+            to {
+                transform: scale(1.1);
+            }
+        }
+
+        /* Minimap & HUD */
+        #minimap-container {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            width: 150px;
+            height: 150px;
+            background: rgba(0, 0, 0, 0.9);
+            border: 2px solid #555;
+            z-index: 180;
+            border-radius: 4px;
+            pointer-events: none;
+            display: block;
+        }
+
+        .mm-dot {
+            position: absolute;
+            width: 4px;
+            height: 4px;
+            border-radius: 50%;
+            transform: translate(-50%, -50%);
+        }
+
+        .mm-wolf {
+            background-color: #f00;
+            width: 5px;
+            height: 5px;
+        }
+
+        .mm-chest {
+            background-color: #ffd700;
+        }
+
+        .mm-player {
+            width: 6px;
+            height: 6px;
+            border: 1px solid white;
+            z-index: 5;
         }
 
         .hud-top {
@@ -243,6 +322,7 @@
             border: 2px solid transparent;
         }
 
+        /* Inventory Sidebar */
         .inventory-sidebar {
             width: 280px;
             background-color: #111;
@@ -293,134 +373,36 @@
             font-size: 0.8em;
         }
 
-        #dogStatsModal {
-            position: absolute;
-            top: 50%;
-            left: 50%;
-            transform: translate(-50%, -50%);
-            width: 300px;
-            background: rgba(10, 15, 30, 0.95);
-            border: 2px solid #00bfff;
-            border-radius: 10px;
-            padding: 20px;
-            color: white;
-            z-index: 150;
-            display: none;
-            box-shadow: 0 0 20px rgba(0, 191, 255, 0.3);
-            max-height: 60vh;
-            overflow-y: auto;
-        }
-
-        #dogStatsContent {
-            max-height: 200px;
-            overflow-y: auto;
-            padding-right: 5px;
-        }
-
-        #adminPanel {
-            position: absolute;
-            top: 50%;
-            left: 50%;
-            transform: translate(-50%, -50%);
-            width: 320px;
-            background: rgba(0, 0, 0, 0.95);
-            border: 2px solid #00ff00;
-            padding: 20px;
-            z-index: 300;
-            display: none;
-            color: #00ff00;
-            font-family: monospace;
-            max-height: 80vh;
-            overflow-y: auto;
-        }
-
-        .admin-row {
-            margin: 10px 0;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-        }
-
-        .admin-input {
-            width: 60px;
-            background: #222;
-            border: 1px solid #00ff00;
-            color: #fff;
-            padding: 5px;
-            text-align: center;
-        }
-
-        .admin-btn {
-            width: 100%;
-            background: #003300;
-            border: 1px solid #00ff00;
-            color: #fff;
-            padding: 8px;
-            cursor: pointer;
-            margin-top: 10px;
-            font-weight: bold;
-        }
-
-        #reviveModal {
-            position: fixed;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            background: rgba(0, 0, 0, 0.8);
-            z-index: 190;
-            display: none;
-            justify-content: center;
-            align-items: center;
-        }
-
-        .revive-content {
-            background: #111;
-            border: 2px solid #00ff00;
-            padding: 20px;
-            width: 300px;
-            text-align: center;
-            border-radius: 8px;
-        }
-
-        .revive-btn {
-            display: block;
-            width: 100%;
-            padding: 10px;
-            margin: 5px 0;
-            background: #003300;
-            color: white;
-            border: 1px solid #00ff00;
-            cursor: pointer;
-        }
-
-        #deathOverlay {
-            position: fixed;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            background: rgba(50, 0, 0, 0.8);
-            z-index: 200;
-            display: none;
-            flex-direction: column;
-            justify-content: center;
-            align-items: center;
-            color: red;
-            font-family: 'Cinzel', serif;
-        }
-
-        #deathOverlay h1 {
-            font-size: 4em;
-            text-shadow: 0 0 20px red;
-            margin-bottom: 10px;
-        }
-
-        #deathOverlay p {
-            color: white;
+        /* Friendly Wolf */
+        .friendly-wolf {
             font-size: 1.5em;
+            width: 36px;
+            height: 36px;
+            background: radial-gradient(circle, #00bfff 0%, #005577 100%);
+            border: 2px solid #fff;
+            border-radius: 50%;
+            position: absolute;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            z-index: 19;
+            box-shadow: 0 0 15px #00bfff, 0 0 5px #fff;
+            animation: pulseDog 1.5s infinite alternate;
         }
 
+        @keyframes pulseDog {
+            from {
+                transform: translate(-50%, -50%) scale(1);
+                box-shadow: 0 0 10px #00bfff;
+            }
+
+            to {
+                transform: translate(-50%, -50%) scale(1.1);
+                box-shadow: 0 0 20px #00bfff, 0 0 10px #fff;
+            }
+        }
+
+        /* Mobile Controls */
         .mobile-controls-layer {
             position: absolute;
             top: 0;
@@ -510,6 +492,7 @@
             }
         }
 
+        /* Overlays */
         #gameOverOverlay {
             position: fixed;
             top: 0;
@@ -524,27 +507,126 @@
             z-index: 250;
         }
 
-        .close-modal-btn {
+        #dogStatsModal {
             position: absolute;
-            top: 5px;
-            right: 10px;
-            background: none;
-            border: none;
-            color: #ff4500;
-            font-size: 1.5em;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            width: 300px;
+            background: rgba(10, 15, 30, 0.95);
+            border: 2px solid #00bfff;
+            border-radius: 10px;
+            padding: 20px;
+            color: white;
+            z-index: 150;
+            display: none;
+            box-shadow: 0 0 20px rgba(0, 191, 255, 0.3);
+            max-height: 60vh;
+            overflow-y: auto;
+        }
+
+        #reviveModal {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.8);
+            z-index: 190;
+            display: none;
+            justify-content: center;
+            align-items: center;
+        }
+
+        .revive-content {
+            background: #111;
+            border: 2px solid #00ff00;
+            padding: 20px;
+            width: 300px;
+            text-align: center;
+            border-radius: 8px;
+        }
+
+        .revive-btn {
+            display: block;
+            width: 100%;
+            padding: 10px;
+            margin: 5px 0;
+            background: #003300;
+            color: white;
+            border: 1px solid #00ff00;
             cursor: pointer;
+        }
+
+        #deathOverlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(50, 0, 0, 0.8);
+            z-index: 200;
+            display: none;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            color: red;
+            font-family: 'Cinzel', serif;
+        }
+
+        #adminPanel {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            width: 320px;
+            background: rgba(0, 0, 0, 0.95);
+            border: 2px solid #00ff00;
+            padding: 20px;
+            z-index: 300;
+            display: none;
+            color: #00ff00;
+            font-family: monospace;
+            max-height: 80vh;
+            overflow-y: auto;
+        }
+
+        .admin-row {
+            margin: 10px 0;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .admin-input {
+            width: 60px;
+            background: #222;
+            border: 1px solid #00ff00;
+            color: #fff;
+            padding: 5px;
+            text-align: center;
         }
     </style>
 </head>
 
 <body>
     <div id="bloodMoonOverlay"></div>
+    <div id="celebrationOverlay">
+        <div id="celebrationText">NEW WORLD RECORD!</div>
+    </div>
+
     <div class="game-wrapper">
         <div id="inventoryPanel" class="inventory-sidebar">
             <div style="padding:20px; color:#ff4500; text-align:center; border-bottom:1px solid #333;">INVENTORY [Q]
             </div>
             <div id="invList"></div>
         </div>
+
+        <div id="chatContainer">
+            <div id="chatHistory"></div>
+            <input type="text" id="chatInput" placeholder="Press Enter to send...">
+        </div>
+
         <div class="hud-top">
             <div class="hud-stat">DAY: <span id="levelDisplay">1</span></div>
             <div class="hud-stat">HP: <span id="hpDisplay">100</span></div>
@@ -554,7 +636,9 @@
         <div id="topAlertBox"></div>
 
         <div id="dogStatsModal">
-            <button class="close-modal-btn" onclick="toggleDogStats()">X</button>
+            <button
+                style="position:absolute; top:5px; right:10px; background:none; border:none; color:#ff4500; cursor:pointer;"
+                onclick="toggleDogStats()">X</button>
             <h2 style="text-align:center; margin-top:0; color:#00bfff;">Companion Pack</h2>
             <div id="dogStatsContent"></div>
             <p style="text-align:center; font-size:0.8em; color:#888;">Press 'O' or 🐕 to close</p>
@@ -563,8 +647,7 @@
         <div id="reviveModal">
             <div class="revive-content">
                 <h2 style="color:#00ff00; margin-top:0;">SELECT TO REVIVE</h2>
-                <div id="reviveList"></div>
-                <button onclick="closeRevive()"
+                <div id="reviveList"></div><button onclick="closeRevive()"
                     style="margin-top:10px; background:#333; border:none; color:#ccc; padding:5px;">CANCEL</button>
             </div>
         </div>
@@ -587,16 +670,20 @@
                     value="50"></div>
             <div class="admin-row"><label>Speed:</label><input type="number" id="admSpeed" class="admin-input"
                     value="10"></div>
-            <button class="admin-btn" onclick="emitAdmin('setStats')">APPLY STATS</button>
+            <button class="admin-btn"
+                style="width:100%; background:#003300; border:1px solid #00ff00; color:#fff; padding:8px;"
+                onclick="emitAdmin('setStats')">APPLY STATS</button>
             <div class="admin-row">
                 <label>Spawn Dogs:</label>
                 <input type="number" id="admDogCount" class="admin-input" value="1">
                 <button style="width:auto; padding:5px 10px; background:#003300; color:white; border:1px solid lime;"
                     onclick="emitAdmin('spawnDogs')">+</button>
             </div>
-            <button class="admin-btn" style="background:#500; border-color:red;" onclick="emitAdmin('killWolves')">KILL
-                ALL WOLVES</button>
             <button class="admin-btn"
+                style="width:100%; background:#500; border-color:red; margin-top:10px; color:#fff; padding:8px;"
+                onclick="emitAdmin('killWolves')">KILL ALL WOLVES</button>
+            <button class="admin-btn"
+                style="width:100%; background:#333; border:1px solid #ccc; margin-top:10px; color:#fff; padding:8px;"
                 onclick="document.getElementById('adminPanel').style.display='none'">CLOSE</button>
         </div>
 
@@ -614,6 +701,8 @@
                 </div>
                 <div class="action-btn-group">
                     <div style="display:flex; flex-direction:column; gap:10px; margin-bottom:5px;">
+                        <div class="mob-btn" style="width:50px; height:50px; font-size:1.2em; background:#333;"
+                            ontouchstart="toggleChat()">💬</div>
                         <div class="mob-btn" style="width:50px; height:50px; font-size:0.8em; background:#333;"
                             ontouchstart="toggleMinimap()">👁️</div>
                         <div class="mob-btn" style="width:50px; height:50px; font-size:0.8em; background:#333;"
@@ -650,6 +739,7 @@
 
         let localEntities = {};
         let lastTime = 0;
+        let currentDay = 1;
 
         if (isMobile) document.getElementById('mobileLayer').style.display = 'block';
 
@@ -663,21 +753,44 @@
             else window.location.href = 'gamelobby.html';
         });
 
+        // Chat Logic
+        const chatInput = document.getElementById('chatInput');
+        chatInput.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter' && chatInput.value.trim() !== "") {
+                socket.emit('sendChat', chatInput.value.trim());
+                chatInput.value = '';
+            }
+        });
+
+        socket.on('chatMsg', (data) => {
+            const hist = document.getElementById('chatHistory');
+            const div = document.createElement('div');
+            div.className = 'chat-msg';
+            div.innerHTML = `<span class="chat-user" style="color:${data.color}">${data.user}:</span> ${data.text}`;
+            hist.appendChild(div);
+            hist.scrollTop = hist.scrollHeight;
+        });
+
+        socket.on('recordBroken', (data) => {
+            const el = document.getElementById('celebrationOverlay');
+            document.getElementById('celebrationText').innerHTML = `NEW RECORD!<br>${data.holder}<br>DAY ${data.days}`;
+            el.style.display = 'flex';
+            setTimeout(() => { el.style.display = 'none'; }, 10000); // 10 seconds party
+        });
+
         socket.on('gameStateUpdate', (state) => {
+            currentDay = state.day;
             if (state.players[myId]) {
                 const sP = state.players[myId];
                 myPlayerLocal.speed = sP.speed;
                 myPlayerLocal.alive = sP.alive;
 
-                // Simple prediction reconciliation
+                // --- GLITCH FIX: Client Authoritative Prediction ---
+                // Only snap to server position if deviation is huge (lag spike or hack check)
                 const dist = Math.hypot(sP.x - myPlayerLocal.x, sP.y - myPlayerLocal.y);
                 if (dist > 150) {
                     myPlayerLocal.x = sP.x;
                     myPlayerLocal.y = sP.y;
-                } else if (dist > 10) {
-                    // Smoothly correct drift
-                    myPlayerLocal.x += (sP.x - myPlayerLocal.x) * 0.1;
-                    myPlayerLocal.y += (sP.y - myPlayerLocal.y) * 0.1;
                 }
             }
             // Blood Moon Effect
@@ -729,8 +842,6 @@
             document.getElementById('endReason').innerText = `${data.reason} (Day ${data.days})`;
             const user = localStorage.getItem('gameUsername');
             if (user) socket.emit('reportScore', { username: user, days: data.days });
-
-            // PB check
             const oldBest = parseInt(localStorage.getItem('feral_personalBest') || "0");
             if (data.days > oldBest) localStorage.setItem('feral_personalBest', data.days);
         });
@@ -758,6 +869,10 @@
                     layer.appendChild(el);
                     localEntities[wKey] = { x: w.x, y: w.y };
                 }
+
+                // SCARY WOLF LOGIC
+                if (currentDay > 2) el.classList.add('nightmare-wolf');
+
                 if (!localEntities[wKey]) localEntities[wKey] = { x: w.x, y: w.y };
                 localEntities[wKey].targetX = w.x; localEntities[wKey].targetY = w.y;
                 const bar = document.getElementById(`wolf-hp-${w.id}`); if (bar) bar.style.width = ((w.hp / w.maxHp) * 100) + '%';
@@ -802,6 +917,8 @@
             const dt = (timestamp - lastTime) / 1000;
             lastTime = timestamp;
 
+            let isMoving = false;
+
             if (myPlayerLocal.alive) {
                 let dx = 0, dy = 0;
                 if (keyStates['w']) dy--; if (keyStates['s']) dy++;
@@ -809,6 +926,7 @@
                 if (joyActive) { dx = joyData.x; dy = joyData.y; }
 
                 if (dx !== 0 || dy !== 0) {
+                    isMoving = true;
                     const len = Math.sqrt(dx * dx + dy * dy);
                     if (len > 0) {
                         const moveStep = (myPlayerLocal.speed * (dt * 30));
@@ -830,6 +948,9 @@
             if (myEl) {
                 myEl.style.left = myPlayerLocal.x + 'px'; myEl.style.top = myPlayerLocal.y + 'px';
                 myEl.style.display = myPlayerLocal.alive ? 'flex' : 'none';
+                // Animation Logic
+                if (isMoving) myEl.querySelector('.player-icon').classList.add('walking');
+                else myEl.querySelector('.player-icon').classList.remove('walking');
             }
 
             const stage = document.getElementById('stage');
@@ -854,6 +975,7 @@
         }
         requestAnimationFrame(renderLoop);
 
+        // Send Movement to Server
         setInterval(() => {
             if (!myPlayerLocal.alive) return;
             let dx = 0, dy = 0;
@@ -917,6 +1039,11 @@
         function toggleDogStats() { const m = document.getElementById('dogStatsModal'); m.style.display = m.style.display === 'block' ? 'none' : 'block'; }
         function toggleInventory() { document.getElementById('inventoryPanel').classList.toggle('visible'); }
         function toggleMinimap() { const m = document.getElementById('minimap-container'); m.style.display = m.style.display === 'none' ? 'block' : 'none'; }
+        function toggleChat() {
+            const c = document.getElementById('chatContainer');
+            c.style.display = (c.style.display === 'none' || c.style.display === '') ? 'flex' : 'none';
+            if (c.style.display === 'flex') document.getElementById('chatInput').focus();
+        }
         function closeRevive() { document.getElementById('reviveModal').style.display = 'none'; }
         function sendAction(type) { socket.emit('playerAction', { type: type }); }
 
@@ -929,15 +1056,22 @@
 
         window.addEventListener('keydown', (e) => {
             const k = e.key.toLowerCase();
+            if (document.activeElement === document.getElementById('chatInput')) return; // Don't move while typing
+
             const map = { 'w': 'w', 'a': 'a', 's': 's', 'd': 'd', 'arrowup': 'w', 'arrowleft': 'a', 'arrowdown': 's', 'arrowright': 'd' };
             if (map[k]) keyStates[map[k]] = true;
             if (k === 'e') sendAction('loot'); if (e.key === ' ') sendAction('attack');
             if (k === 'q') toggleInventory(); if (k === 'o') toggleDogStats(); if (k === 'm') toggleMinimap();
+            if (k === 'c') toggleChat();
             if (k === 'a' && e.shiftKey) document.getElementById('adminPanel').style.display = 'block';
             if (e.key >= '1' && e.key <= '9') socket.emit('playerAction', { type: 'useItem', index: parseInt(e.key) - 1 });
         });
-        window.addEventListener('keyup', (e) => { const k = e.key.toLowerCase(); const map = { 'w': 'w', 'a': 'a', 's': 's', 'd': 'd', 'arrowup': 'w', 'arrowleft': 'a', 'arrowdown': 's', 'arrowright': 'd' }; if (map[k]) keyStates[map[k]] = false; });
-        window.addEventListener('blur', () => { keyStates = {}; }); // Glitch fix
+        window.addEventListener('keyup', (e) => {
+            const k = e.key.toLowerCase();
+            const map = { 'w': 'w', 'a': 'a', 's': 's', 'd': 'd', 'arrowup': 'w', 'arrowleft': 'a', 'arrowdown': 's', 'arrowright': 'd' };
+            if (map[k]) keyStates[map[k]] = false;
+        });
+        window.addEventListener('blur', () => { keyStates = {}; });
 
         joyBase.addEventListener('touchstart', (e) => { joyActive = true; updateJoy(e.touches[0]); }, { passive: false });
         joyBase.addEventListener('touchmove', (e) => { if (joyActive) { e.preventDefault(); updateJoy(e.touches[0]); } }, { passive: false });
