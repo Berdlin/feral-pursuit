@@ -33,18 +33,10 @@
             border-bottom: 2px solid #ff4500;
         }
 
-        label {
-            display: block;
-            margin-top: 15px;
-            color: #888;
-            font-size: 0.9em;
-        }
-
-        input,
-        select {
+        input {
             width: 100%;
             padding: 15px;
-            margin-top: 5px;
+            margin-top: 10px;
             background: #000;
             border: 1px solid #444;
             color: #0f0;
@@ -75,19 +67,11 @@
 <body>
     <div class="container">
         <h1>IDENTITY VERIFICATION</h1>
-
-        <label>OPERATOR CLASS</label>
-        <select id="classSelect">
-            <option value="scout">SCOUT (Fast, Low HP)</option>
-            <option value="medic">MEDIC (Regen, Balanced)</option>
-            <option value="tank">TANK (High HP, Slow)</option>
-        </select>
-
         <label>ENTER CODENAME</label>
         <input type="text" id="username" placeholder="USER_ID..." oninput="checkName()">
 
         <div id="passSection" style="display:none;">
-            <label style="color:#ff4500">ACCESS CODE REQUIRED</label>
+            <label style="margin-top:20px; display:block;">ACCESS CODE REQUIRED</label>
             <input type="password" id="password" placeholder="••••••••••">
         </div>
 
@@ -98,7 +82,7 @@
     <script>
         function checkName() {
             const val = document.getElementById('username').value.trim();
-            // Show password if username is exactly beka_ei
+            // Show password field if trying to be beka_ei
             document.getElementById('passSection').style.display =
                 (val.toLowerCase() === 'beka_ei') ? 'block' : 'none';
         }
@@ -106,13 +90,11 @@
         function start() {
             const user = document.getElementById('username').value.trim();
             const pass = document.getElementById('password').value.trim();
-            const cls = document.getElementById('classSelect').value;
 
             if (!user) { document.getElementById('msg').innerText = "IDENTITY REQUIRED"; return; }
 
             localStorage.setItem('gameUsername', user);
-            localStorage.setItem('gamePass', pass);
-            localStorage.setItem('gameClass', cls);
+            localStorage.setItem('gamePass', pass); // Saves password for server check
 
             document.getElementById('msg').style.color = 'lime';
             document.getElementById('msg').innerText = "CONNECTING...";
