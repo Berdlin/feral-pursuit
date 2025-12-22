@@ -48,6 +48,20 @@
             top: 0;
             left: 0;
             will-change: transform;
+            transition: transform 0.1s linear;
+        }
+
+        #bloodMoonOverlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: radial-gradient(circle, rgba(255, 0, 0, 0.1), rgba(100, 0, 0, 0.6));
+            pointer-events: none;
+            z-index: 80;
+            opacity: 0;
+            transition: opacity 2s ease-in-out;
         }
 
         #minimap-container {
@@ -61,6 +75,7 @@
             z-index: 180;
             border-radius: 4px;
             pointer-events: none;
+            display: block;
         }
 
         .mm-dot {
@@ -73,13 +88,21 @@
 
         .mm-wolf {
             background-color: #f00;
+            width: 5px;
+            height: 5px;
         }
 
         .mm-chest {
             background-color: #ffd700;
         }
 
-        /* ENTITIES */
+        .mm-player {
+            width: 6px;
+            height: 6px;
+            border: 1px solid white;
+            z-index: 5;
+        }
+
         .icon {
             position: absolute;
             transform: translate(-50%, -50%);
@@ -115,11 +138,12 @@
             font-weight: bold;
         }
 
+        /* UPDATED WOLF */
         .wolf-entity {
             font-size: 2.5em;
             width: 50px;
             height: 50px;
-            background: #500;
+            background: #200;
             border-radius: 50%;
             border: 2px solid #f00;
             z-index: 20;
@@ -128,10 +152,9 @@
             justify-content: center;
             align-items: center;
             transform: translate(-50%, -50%);
-            will-change: top, left;
+            box-shadow: 0 0 15px #f00;
         }
 
-        /* --- COOLER DOGS --- */
         .friendly-wolf {
             font-size: 1.5em;
             width: 36px;
@@ -145,9 +168,7 @@
             align-items: center;
             z-index: 19;
             box-shadow: 0 0 15px #00bfff, 0 0 5px #fff;
-            /* Neon Glow */
             animation: pulseDog 1.5s infinite alternate;
-            /* Breathing Effect */
         }
 
         @keyframes pulseDog {
@@ -286,6 +307,8 @@
             z-index: 150;
             display: none;
             box-shadow: 0 0 20px rgba(0, 191, 255, 0.3);
+            max-height: 60vh;
+            overflow-y: auto;
         }
 
         #dogStatsContent {
@@ -515,6 +538,7 @@
 </head>
 
 <body>
+    <div id="bloodMoonOverlay"></div>
     <div class="game-wrapper">
         <div id="inventoryPanel" class="inventory-sidebar">
             <div style="padding:20px; color:#ff4500; text-align:center; border-bottom:1px solid #333;">INVENTORY [Q]
@@ -591,6 +615,8 @@
                 <div class="action-btn-group">
                     <div style="display:flex; flex-direction:column; gap:10px; margin-bottom:5px;">
                         <div class="mob-btn" style="width:50px; height:50px; font-size:0.8em; background:#333;"
+                            ontouchstart="toggleMinimap()">👁️</div>
+                        <div class="mob-btn" style="width:50px; height:50px; font-size:0.8em; background:#333;"
                             ontouchstart="toggleDogStats()">🐕</div>
                         <div class="mob-btn" style="width:50px; height:50px; font-size:0.8em; background:#333;"
                             ontouchstart="toggleInventory()">INV</div>
@@ -643,15 +669,20 @@
                 myPlayerLocal.speed = sP.speed;
                 myPlayerLocal.alive = sP.alive;
 
+                // Simple prediction reconciliation
                 const dist = Math.hypot(sP.x - myPlayerLocal.x, sP.y - myPlayerLocal.y);
-                if (dist > 100) {
+                if (dist > 150) {
                     myPlayerLocal.x = sP.x;
                     myPlayerLocal.y = sP.y;
-                } else if (dist > 20) {
+                } else if (dist > 10) {
+                    // Smoothly correct drift
                     myPlayerLocal.x += (sP.x - myPlayerLocal.x) * 0.1;
                     myPlayerLocal.y += (sP.y - myPlayerLocal.y) * 0.1;
                 }
             }
+            // Blood Moon Effect
+            document.getElementById('bloodMoonOverlay').style.opacity = state.bloodMoon ? 0.4 : 0;
+
             updateLocalEntities(state);
             updateHUD(state);
             updateMinimap(state);
@@ -665,17 +696,12 @@
             }
         });
 
-        socket.on('youRevived', () => {
-            document.getElementById('deathOverlay').style.display = 'none';
-        });
+        socket.on('youRevived', () => { document.getElementById('deathOverlay').style.display = 'none'; });
 
         socket.on('openReviveModal', (players) => {
-            const list = document.getElementById('reviveList');
-            list.innerHTML = '';
+            const list = document.getElementById('reviveList'); list.innerHTML = '';
             players.forEach(p => {
-                const btn = document.createElement('button');
-                btn.className = 'revive-btn';
-                btn.innerText = `REVIVE: ${p.name}`;
+                const btn = document.createElement('button'); btn.className = 'revive-btn'; btn.innerText = `REVIVE: ${p.name}`;
                 btn.onclick = () => { socket.emit('playerAction', { type: 'confirmRevive', targetId: p.id }); closeRevive(); };
                 list.appendChild(btn);
             });
@@ -684,22 +710,16 @@
 
         socket.on('alert', (data) => {
             const el = document.getElementById('topAlertBox');
-            el.innerText = data.msg;
-            el.style.color = data.color;
-            el.style.borderColor = data.color;
-            el.style.opacity = 1;
-            setTimeout(() => el.style.opacity = 0, 3000);
+            el.innerText = data.msg; el.style.color = data.color; el.style.borderColor = data.color;
+            el.style.opacity = 1; setTimeout(() => el.style.opacity = 0, 3000);
         });
 
         socket.on('fx', (data) => {
             if (data.type === 'attack') {
                 const layer = document.getElementById('fxLayer');
-                const ripple = document.createElement('div');
-                ripple.className = 'attack-range';
-                ripple.style.left = data.x + 'px';
-                ripple.style.top = data.y + 'px';
-                layer.appendChild(ripple);
-                setTimeout(() => ripple.remove(), 300);
+                const ripple = document.createElement('div'); ripple.className = 'attack-range';
+                ripple.style.left = data.x + 'px'; ripple.style.top = data.y + 'px';
+                layer.appendChild(ripple); setTimeout(() => ripple.remove(), 300);
             }
         });
 
@@ -709,6 +729,10 @@
             document.getElementById('endReason').innerText = `${data.reason} (Day ${data.days})`;
             const user = localStorage.getItem('gameUsername');
             if (user) socket.emit('reportScore', { username: user, days: data.days });
+
+            // PB check
+            const oldBest = parseInt(localStorage.getItem('feral_personalBest') || "0");
+            if (data.days > oldBest) localStorage.setItem('feral_personalBest', data.days);
         });
 
         function updateLocalEntities(state) {
@@ -725,8 +749,7 @@
             });
 
             state.wolves.forEach(w => {
-                const wKey = `w-${w.id}`;
-                seenIds.add(wKey);
+                const wKey = `w-${w.id}`; seenIds.add(wKey);
                 if (w.hp <= 0) { const el = document.getElementById(wKey); if (el) el.remove(); return; }
                 let el = document.getElementById(wKey);
                 if (!el) {
@@ -740,38 +763,27 @@
                 const bar = document.getElementById(`wolf-hp-${w.id}`); if (bar) bar.style.width = ((w.hp / w.maxHp) * 100) + '%';
             });
 
-            // --- FIXED RENDERING LOOP ---
             for (const id in state.players) {
                 const p = state.players[id];
-
-                // 1. Render Companions (Even my own)
                 p.companions.forEach((dog, idx) => {
-                    const dKey = `d-${id}-${idx}`;
-                    seenIds.add(dKey);
+                    const dKey = `d-${id}-${idx}`; seenIds.add(dKey);
                     let dEl = document.getElementById(dKey);
                     if (!dEl) {
-                        dEl = document.createElement('div'); dEl.id = dKey; dEl.className = 'friendly-wolf';
-                        dEl.innerText = '🐕'; // Emoji overlay
-                        layer.appendChild(dEl);
-                        localEntities[dKey] = { x: dog.x, y: dog.y };
+                        dEl = document.createElement('div'); dEl.id = dKey; dEl.className = 'friendly-wolf'; dEl.innerText = '🐕';
+                        layer.appendChild(dEl); localEntities[dKey] = { x: dog.x, y: dog.y };
                     }
                     if (!localEntities[dKey]) localEntities[dKey] = { x: dog.x, y: dog.y };
                     localEntities[dKey].targetX = dog.x; localEntities[dKey].targetY = dog.y;
                 });
 
-                // 2. Render Player Character (Skip mine to avoid jitter)
                 if (id === myId) continue;
-
-                const pKey = `p-${id}`;
-                seenIds.add(pKey);
+                const pKey = `p-${id}`; seenIds.add(pKey);
                 if (!p.alive) { const el = document.getElementById(pKey); if (el) el.remove(); continue; }
-
                 let el = document.getElementById(pKey);
                 if (!el) {
                     el = document.createElement('div'); el.id = pKey; el.className = 'icon';
                     el.innerHTML = `<div class="name-tag">${p.username}</div><div class="player-icon" style="background:${p.color}">🏃</div>`;
-                    layer.appendChild(el);
-                    localEntities[pKey] = { x: p.x, y: p.y };
+                    layer.appendChild(el); localEntities[pKey] = { x: p.x, y: p.y };
                 }
                 if (!localEntities[pKey]) localEntities[pKey] = { x: p.x, y: p.y };
                 localEntities[pKey].targetX = p.x; localEntities[pKey].targetY = p.y;
@@ -816,8 +828,7 @@
                 document.getElementById('entitiesLayer').appendChild(myEl);
             }
             if (myEl) {
-                myEl.style.left = myPlayerLocal.x + 'px';
-                myEl.style.top = myPlayerLocal.y + 'px';
+                myEl.style.left = myPlayerLocal.x + 'px'; myEl.style.top = myPlayerLocal.y + 'px';
                 myEl.style.display = myPlayerLocal.alive ? 'flex' : 'none';
             }
 
@@ -828,13 +839,14 @@
             camY = Math.min(0, Math.max(camY, stage.clientHeight - 1500));
             document.getElementById('mapViewport').style.transform = `translate3d(${camX}px, ${camY}px, 0)`;
 
-            const lerpSpeed = 0.2;
+            // Smooth Interpolation for other entities
+            const lerpFactor = 0.2;
             for (const key in localEntities) {
                 const ent = localEntities[key];
                 const el = document.getElementById(key);
                 if (el && ent.targetX !== undefined) {
-                    ent.x += (ent.targetX - ent.x) * lerpSpeed;
-                    ent.y += (ent.targetY - ent.y) * lerpSpeed;
+                    ent.x += (ent.targetX - ent.x) * lerpFactor;
+                    ent.y += (ent.targetY - ent.y) * lerpFactor;
                     el.style.left = ent.x + 'px'; el.style.top = ent.y + 'px';
                 }
             }
@@ -857,18 +869,13 @@
         function updateHUD(state) {
             const p = state.players[myId];
             if (!p) return;
-
             document.getElementById('hpDisplay').innerText = Math.max(0, Math.ceil(p.hp));
             document.getElementById('dmgDisplay').innerText = p.dmg;
             document.getElementById('levelDisplay').innerText = state.day;
             document.getElementById('timeDisplay').innerText = state.status === 'collection' ? state.timer + 's' : 'HUNT';
 
-            const invList = document.getElementById('invList');
-            invList.innerHTML = '';
-
-            let hasTotem = false;
-            let totemIndex = -1;
-
+            const invList = document.getElementById('invList'); invList.innerHTML = '';
+            let hasTotem = false; let totemIndex = -1;
             p.inventory.forEach((item, index) => {
                 if (item.type === 'revive') { hasTotem = true; totemIndex = index; }
                 const div = document.createElement('div'); div.className = 'inv-item';
@@ -876,14 +883,9 @@
                 div.onclick = () => { socket.emit('playerAction', { type: 'useItem', index: index }); };
                 invList.appendChild(div);
             });
-
             const selfReviveBtn = document.getElementById('selfReviveArea');
-            if (!p.alive && hasTotem) {
-                selfReviveBtn.style.display = 'block';
-                selfReviveBtn.onclick = () => socket.emit('playerAction', { type: 'useItem', index: totemIndex });
-            } else {
-                selfReviveBtn.style.display = 'none';
-            }
+            if (!p.alive && hasTotem) { selfReviveBtn.style.display = 'block'; selfReviveBtn.onclick = () => socket.emit('playerAction', { type: 'useItem', index: totemIndex }); }
+            else { selfReviveBtn.style.display = 'none'; }
         }
 
         function updateDogModal(state) {
@@ -897,27 +899,24 @@
 
         function updateMinimap(state) {
             const mm = document.getElementById('minimap-container');
-            const scale = 150 / 1500;
-            mm.innerHTML = '';
+            if (mm.style.display === 'none') return;
+            const scale = 150 / 1500; mm.innerHTML = '';
             state.wolves.forEach(w => { if (w.hp > 0) createDot(mm, w.x, w.y, 'mm-wolf', scale); });
             state.chests.forEach(c => { if (!c.opened) createDot(mm, c.x, c.y, 'mm-chest', scale); });
             for (const id in state.players) {
                 const p = state.players[id];
                 if (p.alive) {
-                    const dot = createDot(mm, p.x, p.y, '', scale);
+                    const dot = createDot(mm, p.x, p.y, 'mm-player', scale);
                     dot.style.background = p.color;
                     if (id === myId) { dot.style.border = "2px solid white"; dot.style.width = "8px"; dot.style.height = "8px"; }
                 }
             }
         }
 
-        function createDot(parent, x, y, cls, scale) {
-            const d = document.createElement('div'); d.className = 'mm-dot ' + cls;
-            d.style.left = (x * scale) + 'px'; d.style.top = (y * scale) + 'px'; parent.appendChild(d); return d;
-        }
-
+        function createDot(parent, x, y, cls, scale) { const d = document.createElement('div'); d.className = 'mm-dot ' + cls; d.style.left = (x * scale) + 'px'; d.style.top = (y * scale) + 'px'; parent.appendChild(d); return d; }
         function toggleDogStats() { const m = document.getElementById('dogStatsModal'); m.style.display = m.style.display === 'block' ? 'none' : 'block'; }
         function toggleInventory() { document.getElementById('inventoryPanel').classList.toggle('visible'); }
+        function toggleMinimap() { const m = document.getElementById('minimap-container'); m.style.display = m.style.display === 'none' ? 'block' : 'none'; }
         function closeRevive() { document.getElementById('reviveModal').style.display = 'none'; }
         function sendAction(type) { socket.emit('playerAction', { type: type }); }
 
@@ -932,33 +931,18 @@
             const k = e.key.toLowerCase();
             const map = { 'w': 'w', 'a': 'a', 's': 's', 'd': 'd', 'arrowup': 'w', 'arrowleft': 'a', 'arrowdown': 's', 'arrowright': 'd' };
             if (map[k]) keyStates[map[k]] = true;
-            if (k === 'e') sendAction('loot');
-            if (e.key === ' ') sendAction('attack');
-            if (k === 'q') toggleInventory();
-            if (k === 'o') toggleDogStats();
+            if (k === 'e') sendAction('loot'); if (e.key === ' ') sendAction('attack');
+            if (k === 'q') toggleInventory(); if (k === 'o') toggleDogStats(); if (k === 'm') toggleMinimap();
             if (k === 'a' && e.shiftKey) document.getElementById('adminPanel').style.display = 'block';
             if (e.key >= '1' && e.key <= '9') socket.emit('playerAction', { type: 'useItem', index: parseInt(e.key) - 1 });
         });
-
-        window.addEventListener('keyup', (e) => {
-            const k = e.key.toLowerCase();
-            const map = { 'w': 'w', 'a': 'a', 's': 's', 'd': 'd', 'arrowup': 'w', 'arrowleft': 'a', 'arrowdown': 's', 'arrowright': 'd' };
-            if (map[k]) keyStates[map[k]] = false;
-        });
+        window.addEventListener('keyup', (e) => { const k = e.key.toLowerCase(); const map = { 'w': 'w', 'a': 'a', 's': 's', 'd': 'd', 'arrowup': 'w', 'arrowleft': 'a', 'arrowdown': 's', 'arrowright': 'd' }; if (map[k]) keyStates[map[k]] = false; });
+        window.addEventListener('blur', () => { keyStates = {}; }); // Glitch fix
 
         joyBase.addEventListener('touchstart', (e) => { joyActive = true; updateJoy(e.touches[0]); }, { passive: false });
         joyBase.addEventListener('touchmove', (e) => { if (joyActive) { e.preventDefault(); updateJoy(e.touches[0]); } }, { passive: false });
         joyBase.addEventListener('touchend', () => { joyActive = false; joyKnob.style.transform = `translate(-50%,-50%)`; joyData = { x: 0, y: 0 }; });
-        function updateJoy(touch) {
-            const rect = joyBase.getBoundingClientRect();
-            let dx = touch.clientX - (rect.left + rect.width / 2);
-            let dy = touch.clientY - (rect.top + rect.height / 2);
-            const dist = Math.sqrt(dx * dx + dy * dy);
-            const max = rect.width / 2;
-            if (dist > max) { dx = (dx / dist) * max; dy = (dy / dist) * max; }
-            joyKnob.style.transform = `translate(calc(-50% + ${dx}px), calc(-50% + ${dy}px))`;
-            joyData.x = dx / max; joyData.y = dy / max;
-        }
+        function updateJoy(touch) { const rect = joyBase.getBoundingClientRect(); let dx = touch.clientX - (rect.left + rect.width / 2); let dy = touch.clientY - (rect.top + rect.height / 2); const dist = Math.sqrt(dx * dx + dy * dy); const max = rect.width / 2; if (dist > max) { dx = (dx / dist) * max; dy = (dy / dist) * max; } joyKnob.style.transform = `translate(calc(-50% + ${dx}px), calc(-50% + ${dy}px))`; joyData.x = dx / max; joyData.y = dy / max; }
     </script>
 </body>
 

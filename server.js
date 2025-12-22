@@ -24,7 +24,7 @@ app.get('/', (req, res) => {
 });
 
 const MAP_SIZE = 1500;
-const WOLF_SPEED = 4.5;
+const WOLF_SPEED = 5.0; // Increased slightly for difficulty
 const DOG_SPEED = 6.0;
 const PLAYER_SPEED = 7;
 const LOOT_RADIUS = 80;
@@ -32,11 +32,21 @@ const LOOT_RADIUS = 80;
 const rooms = {};
 let currentWorldRecord = { holder: 'Nobody', days: 0 };
 
+// --- 1. FIXED WORLD RECORD FETCH ---
 async function fetchWorldRecord() {
     if (!supabase) return;
     try {
-        const { data } = await supabase.from('leaderboard').select('*').order('days_survived', { ascending: false }).limit(1).single();
-        if (data) currentWorldRecord = { holder: data.username, days: data.days_survived };
+        // Always get the absolute highest score
+        const { data } = await supabase
+            .from('leaderboard')
+            .select('*')
+            .order('days_survived', { ascending: false })
+            .limit(1)
+            .single();
+
+        if (data) {
+            currentWorldRecord = { holder: data.username, days: data.days_survived };
+        }
     } catch (e) { console.log("DB Fetch Error", e); }
 }
 fetchWorldRecord();
@@ -53,9 +63,10 @@ function updateRoom(roomId) {
 
     const elapsed = (Date.now() - room.timerStart) / 1000;
 
+    // --- 2. PHASE SWITCH LOGIC ---
     if (room.status === 'collection' && elapsed > 25) {
         room.status = 'chase';
-        io.to(roomId).emit('alert', { msg: "THE HUNT BEGINS!", color: "red" });
+        io.to(roomId).emit('alert', { msg: "THE BLOOD MOON RISES!", color: "red" });
     }
 
     if (room.status === 'chase') {
@@ -65,6 +76,7 @@ function updateRoom(roomId) {
             let target = null;
             let minDist = 9999;
 
+            // Find closest target (Player or Dog)
             for (const pid in room.players) {
                 const p = room.players[pid];
                 if (!p.alive) continue;
@@ -83,15 +95,21 @@ function updateRoom(roomId) {
                 wolf.x += Math.cos(angle) * WOLF_SPEED;
                 wolf.y += Math.sin(angle) * WOLF_SPEED;
 
-                if (minDist < 35) {
+                // --- 3. IMPROVED ATTACK LOGIC ---
+                if (minDist < 40) {
                     const now = Date.now();
                     if (now > (wolf.nextAttack || 0)) {
                         wolf.nextAttack = now + 500;
+
+                        // If target is player
                         if (target.username) {
                             if (!target.invulnerable) {
                                 target.hp -= wolf.dmg;
                                 target.invulnerable = true;
                                 setTimeout(() => { if (target) target.invulnerable = false; }, 1000);
+
+                                io.to(roomId).emit('fx', { type: 'blood', x: target.x, y: target.y }); // Visual feedback
+
                                 if (target.hp <= 0) {
                                     target.hp = 0;
                                     target.alive = false;
@@ -101,8 +119,10 @@ function updateRoom(roomId) {
                                 }
                             }
                         } else {
+                            // Target is dog
                             target.hp -= wolf.dmg;
                             if (target.hp <= 0) {
+                                // Remove dead dog locally from room state
                                 for (const pid in room.players) {
                                     room.players[pid].companions = room.players[pid].companions.filter(d => d !== target);
                                 }
@@ -114,6 +134,7 @@ function updateRoom(roomId) {
         });
     }
 
+    // Move Dogs
     for (const pid in room.players) {
         const p = room.players[pid];
         if (!p.alive) continue;
@@ -154,6 +175,7 @@ function updateRoom(roomId) {
         chests: room.chests,
         status: room.status,
         day: room.level,
+        bloodMoon: room.status === 'chase', // Flag for Red Atmosphere
         timer: Math.max(0, 25 - Math.floor(elapsed))
     });
 }
@@ -167,9 +189,10 @@ function checkVictory(roomId) {
         room.level++;
         room.status = 'collection';
         room.timerStart = Date.now();
+        // Heal survivors slightly
         for (const pid in room.players) {
             if (room.players[pid].alive) {
-                room.players[pid].hp = Math.min(room.players[pid].maxHp, room.players[pid].hp + 20);
+                room.players[pid].hp = Math.min(room.players[pid].maxHp, room.players[pid].hp + 30);
             }
         }
         spawnEntities(room, room.level);
@@ -318,7 +341,6 @@ io.on('connection', (socket) => {
         const room = getRoom(socket);
         if (!room) return;
         const p = room.players[socket.id];
-        // FIXED HP Logic for spawned dogs
         if (data.action === 'spawnDogs') for (let i = 0; i < data.val; i++) p.companions.push({ x: p.x, y: p.y, hp: 150 + (room.level * 20), maxHp: 150 + (room.level * 20), dmg: 15 + (room.level * 2), nextAttack: 0 });
         else if (data.action === 'killWolves') { room.wolves.forEach(w => w.hp = 0); checkVictory(room.id); }
         else if (data.action === 'setStats') { if (data.hp) p.hp = parseInt(data.hp); if (data.dmg) p.dmg = parseInt(data.dmg); if (data.speed) p.speed = parseInt(data.speed); }
@@ -339,7 +361,10 @@ io.on('connection', (socket) => {
     socket.on('reportScore', async (data) => {
         if (!supabase) return;
         try {
+            // Save every run to history
             await supabase.from('leaderboard').insert([{ username: data.username, days_survived: data.days }]);
+
+            // Check if this is a new world record
             if (data.days > currentWorldRecord.days) {
                 currentWorldRecord = { holder: data.username, days: data.days };
                 io.emit('leaderboardData', currentWorldRecord);
