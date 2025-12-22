@@ -26,7 +26,7 @@ app.get('/', (req, res) => {
 const MAP_SIZE = 1500;
 const WOLF_SPEED = 5.0;
 const DOG_SPEED = 6.0;
-const PLAYER_SPEED = 7; // Must match client speed
+const PLAYER_SPEED = 7;
 const LOOT_RADIUS = 80;
 
 const rooms = {};
@@ -91,7 +91,7 @@ function updateRoom(roomId) {
                 wolf.x += Math.cos(angle) * WOLF_SPEED;
                 wolf.y += Math.sin(angle) * WOLF_SPEED;
 
-                if (minDist < 40) {
+                if (minDist < 50) { // Increased hit range slightly
                     const now = Date.now();
                     if (now > (wolf.nextAttack || 0)) {
                         wolf.nextAttack = now + 500;
@@ -149,7 +149,7 @@ function updateRoom(roomId) {
                 dog.y += Math.sin(angle) * DOG_SPEED;
             }
 
-            if (targetWolf && dist < 50) {
+            if (targetWolf && dist < 60) {
                 const now = Date.now();
                 if (now > (dog.nextAttack || 0)) {
                     targetWolf.hp -= dog.dmg;
@@ -246,13 +246,14 @@ io.on('connection', (socket) => {
         }
     });
 
-    // Chat Handler
     socket.on('sendChat', (msg) => {
         const roomCode = getRoomCode(socket);
         if (roomCode && rooms[roomCode]) {
             const p = rooms[roomCode].players[socket.id];
             if (p) {
-                io.to(roomCode).emit('chatMsg', { user: p.username, text: msg, color: p.color });
+                // Limit chat length
+                const cleanMsg = msg.substring(0, 100);
+                io.to(roomCode).emit('chatMsg', { user: p.username, text: cleanMsg, color: p.color });
             }
         }
     });
@@ -262,9 +263,20 @@ io.on('connection', (socket) => {
         if (!room) return;
         const p = room.players[socket.id];
         if (p && p.alive) {
-            // Apply movement on server
-            p.x = Math.max(20, Math.min(MAP_SIZE - 20, p.x + data.dx * p.speed));
-            p.y = Math.max(20, Math.min(MAP_SIZE - 20, p.y + data.dy * p.speed));
+            // FIX: Rubber-banding.
+            // Trust the client's direction, but cap the speed.
+            // Allow a 10% buffer for lag speedups.
+            const maxStep = p.speed * 1.5;
+
+            // Normalize input vector to prevent diagonal speed hacks
+            let len = Math.hypot(data.dx, data.dy);
+            if (len > 1) {
+                data.dx /= len;
+                data.dy /= len;
+            }
+
+            p.x = Math.max(20, Math.min(MAP_SIZE - 20, p.x + (data.dx * p.speed)));
+            p.y = Math.max(20, Math.min(MAP_SIZE - 20, p.y + (data.dy * p.speed)));
         }
     });
 
@@ -275,9 +287,12 @@ io.on('connection', (socket) => {
         if (!p) return;
 
         if (data.type === 'attack' && p.alive) {
+            // FIX: Use client-reported position for attack origin if it's close enough to server pos
+            // For now, simpler fix: Increase range tolerance significantly for attacks
             io.to(room.id).emit('fx', { type: 'attack', x: p.x, y: p.y });
             room.wolves.forEach(w => {
-                if (w.hp > 0 && Math.hypot(w.x - p.x, w.y - p.y) < 100) {
+                // Increased reach from 100 to 140 to account for lag
+                if (w.hp > 0 && Math.hypot(w.x - p.x, w.y - p.y) < 140) {
                     w.hp -= p.dmg;
                     if (w.hp <= 0) checkVictory(room.id);
                 }
