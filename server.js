@@ -11,6 +11,10 @@ const { createClient } = require('@supabase/supabase-js');
 const supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_ROLE_KEY);
 
 app.use(express.static(__dirname));
+// This tells the server what to show at the main link
+app.get('/', (req, res) => {
+    res.sendFile(__dirname + '/auth.html');
+});
 
 // --- GAME CONSTANTS ---
 const MAP_SIZE = 1500;
