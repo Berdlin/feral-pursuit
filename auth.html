@@ -3,106 +3,12 @@
 
 <head>
     <meta charset="UTF-8">
-    <title>Feral Pursuit - Access</title>
-    <style>
-        body {
-            background: #000;
-            color: #0f0;
-            font-family: monospace;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            height: 100vh;
-            flex-direction: column;
-        }
-
-        .box {
-            border: 2px solid #0f0;
-            padding: 40px;
-            width: 300px;
-            box-shadow: 0 0 20px #0f0;
-        }
-
-        input {
-            background: #111;
-            border: 1px solid #0f0;
-            color: white;
-            width: 100%;
-            padding: 10px;
-            margin: 10px 0;
-        }
-
-        button {
-            background: #0f0;
-            color: black;
-            border: none;
-            padding: 10px 20px;
-            cursor: pointer;
-            font-weight: bold;
-            width: 100%;
-        }
-
-        button:hover {
-            background: white;
-        }
-
-        h1 {
-            text-shadow: 0 0 5px #0f0;
-            text-align: center;
-        }
-
-        .switch {
-            text-align: center;
-            margin-top: 10px;
-            cursor: pointer;
-            text-decoration: underline;
-            color: #888;
-        }
-    </style>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Document</title>
 </head>
 
 <body>
-    <div class="box">
-        <h1>FERAL OS v2.0</h1>
-        <div id="loginForm">
-            <input type="text" id="lUser" placeholder="Username">
-            <input type="password" id="lPass" placeholder="Password">
-            <button onclick="doLogin()">LOGIN</button>
-            <div class="switch" onclick="toggle()">New? Register Here</div>
-        </div>
-        <div id="regForm" style="display:none;">
-            <input type="text" id="rUser" placeholder="Choose Username">
-            <input type="password" id="rPass" placeholder="Choose Password">
-            <button onclick="doReg()">REGISTER</button>
-            <div class="switch" onclick="toggle()">Have account? Login</div>
-        </div>
-        <p id="msg" style="color:red; text-align:center;"></p>
-    </div>
-    <script src="/socket.io/socket.io.js"></script>
-    <script>
-        const socket = io();
-        const msg = (t) => document.getElementById('msg').innerText = t;
 
-        function doLogin() {
-            socket.emit('login', { username: document.getElementById('lUser').value, password: document.getElementById('lPass').value });
-        }
-        function doReg() {
-            socket.emit('register', { username: document.getElementById('rUser').value, password: document.getElementById('rPass').value });
-        }
-        function toggle() {
-            const l = document.getElementById('loginForm');
-            const r = document.getElementById('regForm');
-            l.style.display = l.style.display === 'none' ? 'block' : 'none';
-            r.style.display = r.style.display === 'none' ? 'block' : 'none';
-        }
-
-        socket.on('loginSuccess', (data) => {
-            localStorage.setItem('fp_user', JSON.stringify(data));
-            window.location.href = 'gameintro.html';
-        });
-        socket.on('registerSuccess', () => { msg("Registered! Now Login."); toggle(); });
-        socket.on('loginFail', (m) => msg(m));
-    </script>
 </body>
 
 </html>

@@ -3,272 +3,478 @@
 
 <head>
     <meta charset="UTF-8">
-    <title>Multiplayer</title>
-    <script src="https://unpkg.com/peerjs@1.5.1/dist/peerjs.min.js"></script>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Feral Pursuit - Multiplayer</title>
     <style>
-        /* Exact copy of realgame.html styles + chat styles */
         body {
             margin: 0;
-            background: #000;
+            background: #080808;
             overflow: hidden;
-            font-family: monospace;
+            font-family: 'Segoe UI', sans-serif;
+            user-select: none;
         }
 
-        #game {
+        /* GAME STAGE */
+        #gameStage {
             position: relative;
             width: 100vw;
             height: 100vh;
-            background: #080f08;
+            background: #050505;
+            display: flex;
+            justify-content: center;
+            align-items: center;
         }
 
-        #camera {
+        #mapLayer {
+            width: 1500px;
+            height: 1500px;
             position: absolute;
             top: 0;
             left: 0;
-            width: 1500px;
-            height: 1500px;
-            background-image: radial-gradient(#1a2b1a 2px, transparent 2px);
-            background-size: 50px 50px;
+            background: radial-gradient(circle at 50% 50%, #1a1a1a 0%, #000 100%);
+            background-image: linear-gradient(rgba(255, 255, 255, 0.03) 1px, transparent 1px), linear-gradient(90deg, rgba(255, 255, 255, 0.03) 1px, transparent 1px);
+            background-size: 100px 100px;
             border: 5px solid #333;
+            transition: transform 0.1s linear;
+            /* Smooth Camera */
         }
 
+        /* ENTITIES */
         .entity {
             position: absolute;
             transform: translate(-50%, -50%);
-            width: 40px;
-            height: 40px;
-            text-align: center;
+            transition: left 0.2s linear, top 0.2s linear;
         }
 
-        .player {
-            background: url('https://img.icons8.com/color/48/pixel-cat.png') no-repeat center/cover;
-            filter: drop-shadow(0 0 5px lime);
+        .player-dot {
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            border: 2px solid #fff;
+            box-shadow: 0 0 10px rgba(255, 255, 255, 0.3);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            font-size: 20px;
+            z-index: 10;
+        }
+
+        .name-tag {
+            position: absolute;
+            top: -20px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: rgba(0, 0, 0, 0.7);
+            color: white;
+            padding: 2px 5px;
+            border-radius: 4px;
+            font-size: 12px;
+            white-space: nowrap;
         }
 
         .wolf {
-            background: url('https://img.icons8.com/color/48/werewolf.png') no-repeat center/cover;
+            width: 50px;
+            height: 50px;
+            background: #400;
+            border: 2px solid red;
+            border-radius: 50%;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            font-size: 25px;
+            box-shadow: 0 0 15px red;
+            z-index: 5;
         }
 
-        .name {
-            position: absolute;
-            top: -20px;
-            color: white;
-            width: 100px;
-            left: -30px;
-            text-align: center;
-            font-size: 10px;
+        .chest {
+            font-size: 30px;
+            z-index: 4;
         }
 
-        #chatBox {
+        /* NEW CHAT UI - REALISTIC & SLEEK */
+        #chatContainer {
             position: fixed;
-            bottom: 10px;
-            left: 10px;
-            width: 300px;
-            height: 200px;
-            background: rgba(0, 0, 0, 0.8);
-            border: 1px solid #555;
+            bottom: 20px;
+            left: 20px;
+            width: 350px;
+            height: 250px;
             display: flex;
             flex-direction: column;
-            z-index: 200;
+            z-index: 100;
+            /* Glassmorphism Effect */
+            background: rgba(20, 20, 20, 0.65);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            border-radius: 12px;
+            box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.37);
+            font-family: 'Consolas', 'Courier New', monospace;
+            transition: opacity 0.3s;
         }
 
-        #chatLog {
+        #chatHistory {
             flex-grow: 1;
-            overflow-y: scroll;
-            color: #ccc;
-            padding: 5px;
-            font-size: 12px;
+            overflow-y: auto;
+            padding: 15px;
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            scrollbar-width: thin;
+            scrollbar-color: #444 transparent;
         }
 
-        #chatIn {
-            background: #222;
+        .chat-msg {
+            font-size: 0.9em;
+            line-height: 1.4;
+            color: #ddd;
+            text-shadow: 1px 1px 0 #000;
+            animation: fadeIn 0.3s ease;
+        }
+
+        @keyframes fadeIn {
+            from {
+                opacity: 0;
+                transform: translateY(5px);
+            }
+
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .chat-user {
+            font-weight: bold;
+            margin-right: 5px;
+            filter: brightness(1.2);
+        }
+
+        #chatInput {
+            background: rgba(0, 0, 0, 0.3);
             border: none;
+            border-top: 1px solid rgba(255, 255, 255, 0.1);
             color: white;
-            padding: 5px;
+            padding: 15px;
+            outline: none;
+            border-radius: 0 0 12px 12px;
+            font-family: inherit;
         }
 
-        #voicePanel {
+        #chatInput:focus {
+            background: rgba(0, 0, 0, 0.5);
+        }
+
+        /* HUD */
+        .hud {
             position: fixed;
-            top: 10px;
-            right: 10px;
-            background: #222;
-            color: white;
-            padding: 5px;
-            z-index: 200;
-            font-size: 10px;
+            top: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: rgba(0, 0, 0, 0.8);
+            padding: 10px 20px;
+            border-radius: 30px;
+            border: 1px solid #333;
+            color: #ccc;
+            z-index: 100;
+            display: flex;
+            gap: 15px;
+            font-weight: bold;
         }
 
-        .talking {
-            border: 2px solid #0f0;
+        .hud span {
+            color: #ff4500;
         }
 
-        /* Admin */
-        #admin {
+        #alertBox {
+            position: fixed;
+            top: 80px;
+            width: 100%;
+            text-align: center;
+            font-size: 2em;
+            font-weight: bold;
+            text-shadow: 0 0 10px #000;
+            pointer-events: none;
+            z-index: 150;
+            opacity: 0;
+            transition: opacity 0.5s;
+        }
+
+        /* MOBILE */
+        #mobileControls {
             display: none;
             position: fixed;
+            width: 100%;
+            height: 100%;
+            top: 0;
+            left: 0;
+            pointer-events: none;
+            z-index: 110;
+        }
+
+        .joy-zone {
+            position: absolute;
+            bottom: 50px;
+            left: 50px;
+            width: 120px;
+            height: 120px;
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 50%;
+            pointer-events: auto;
+        }
+
+        .joy-knob {
+            width: 50px;
+            height: 50px;
+            background: rgba(255, 69, 0, 0.8);
+            border-radius: 50%;
+            position: absolute;
             top: 50%;
             left: 50%;
             transform: translate(-50%, -50%);
-            background: #111;
-            border: 2px solid lime;
-            padding: 20px;
-            z-index: 300;
-            color: lime;
+            pointer-events: none;
+        }
+
+        .mob-btn {
+            width: 70px;
+            height: 70px;
+            background: rgba(50, 50, 50, 0.8);
+            border: 2px solid white;
+            border-radius: 50%;
+            position: absolute;
+            bottom: 50px;
+            right: 30px;
+            pointer-events: auto;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            font-size: 1.5em;
+            color: white;
+        }
+
+        .mob-btn:active {
+            background: #ff4500;
+        }
+
+        #btnLoot {
+            bottom: 140px;
         }
     </style>
 </head>
 
 <body>
-    <div id="game">
-        <div id="camera">
+    <div id="alertBox"></div>
+    <div class="hud">
+        Day: <span id="dayDisp">1</span> | HP: <span id="hpDisp">100</span> | Time: <span id="timeDisp">--</span>
+    </div>
+
+    <div id="chatContainer">
+        <div id="chatHistory"></div>
+        <input type="text" id="chatInput" placeholder="Radio channel...">
+    </div>
+
+    <div id="gameStage">
+        <div id="mapLayer">
             <div id="entities"></div>
         </div>
     </div>
 
-    <div id="hud" style="position:fixed; top:10px; left:50%; color:white; z-index:200;">
-        DAY: <span id="dDay">--</span> | TIME: <span id="dTime">--</span>
-    </div>
-
-    <div id="chatBox">
-        <div id="chatLog"></div>
-        <input type="text" id="chatIn" placeholder="Press Enter to chat...">
-    </div>
-
-    <div id="voicePanel">
-        <div>VOICE CHAT <span id="voiceStatus" style="color:red;">OFF</span></div>
-        <button onclick="toggleMute()">MUTE MIC</button>
-    </div>
-
-    <div id="admin">
-        <h3>GLOBAL ADMIN</h3>
-        <button onclick="adm('killWolves')">KILL ALL WOLVES</button>
-        <button onclick="adm('spawnWhiteWolf')">SPAWN WHITE WOLF</button>
-        <button onclick="adm('giveCoins')">GIVE 100 COINS (GLOBAL)</button>
-        <button onclick="document.getElementById('admin').style.display='none'">CLOSE</button>
+    <div id="mobileControls">
+        <div class="joy-zone" id="joyBase">
+            <div class="joy-knob" id="joyKnob"></div>
+        </div>
+        <div class="mob-btn" id="btnAttack" ontouchstart="sendAct('attack')">⚔️</div>
+        <div class="mob-btn" id="btnLoot" ontouchstart="sendAct('loot')">👋</div>
     </div>
 
     <script src="/socket.io/socket.io.js"></script>
     <script>
         const socket = io();
-        const user = JSON.parse(localStorage.getItem('fp_user'));
-        const cls = localStorage.getItem('fp_class') || 'default';
+        const myUser = localStorage.getItem('gameUsername') || "Guest";
+        const myPass = localStorage.getItem('gamePass') || "";
         let myId = null;
 
-        // AUTH CHECK
-        if (!user) window.location.href = 'auth.html';
+        // --- SMOOTH MOVEMENT VARS ---
+        let myPos = { x: 750, y: 750 }; // Local prediction
+        let serverPos = { x: 750, y: 750 }; // Last known server pos
+        let keyState = {};
+        let lastTime = 0;
+        const SPEED = 7;
 
-        // --- 1. SETUP & JOIN ---
+        // Setup
+        const map = document.getElementById('mapLayer');
+        const ents = document.getElementById('entities');
+        const isMob = /Android|iPhone/i.test(navigator.userAgent);
+        if (isMob) document.getElementById('mobileControls').style.display = 'block';
+
         socket.on('connect', () => {
             myId = socket.id;
-            socket.emit('host', { username: user.username, equippedClass: cls });
+            socket.emit('verifyIdentity', { username: myUser, password: myPass });
+            const code = localStorage.getItem('gameRoomCode');
+            if (code) socket.emit('joinGame', code, { username: myUser });
         });
 
-        // --- 2. GAME LOOP & RENDERING ---
-        const cam = document.getElementById('camera');
-        const entDiv = document.getElementById('entities');
+        // --- THE FIX: CLIENT SIDE PREDICTION LOOP ---
+        function gameLoop(timestamp) {
+            if (!lastTime) lastTime = timestamp;
+            const dt = (timestamp - lastTime) / 1000;
+            lastTime = timestamp;
 
-        socket.on('tick', (state) => {
-            // Update HUD
-            document.getElementById('dDay').innerText = state.status === 'chase' ? state.status.toUpperCase() : `DAY ${state.status}`;
-            document.getElementById('dTime').innerText = state.time;
-
-            entDiv.innerHTML = ''; // Clear (Inefficient but simple for consistency)
-
-            // Render Players
-            Object.values(state.players).forEach(p => {
-                if (!p.alive) return;
-                const el = document.createElement('div');
-                el.className = 'entity player';
-                el.style.left = p.x + 'px';
-                el.style.top = p.y + 'px';
-                el.innerHTML = `<div class="name">${p.username}</div>`;
-                if (p.id === myId) {
-                    // Camera Follow Me
-                    cam.style.transform = `translate(${window.innerWidth / 2 - p.x}px, ${window.innerHeight / 2 - p.y}px)`;
-                }
-                entDiv.appendChild(el);
-            });
-
-            // Render Wolves
-            state.wolves.forEach(w => {
-                if (w.hp <= 0) return;
-                const el = document.createElement('div');
-                el.className = w.type === 'white' ? 'entity wolf white-wolf' : 'entity wolf';
-                el.style.left = w.x + 'px'; el.style.top = w.y + 'px';
-                entDiv.appendChild(el);
-            });
-        });
-
-        // --- 3. INPUTS ---
-        const keys = {};
-        window.onkeydown = (e) => {
-            if (document.activeElement === document.getElementById('chatIn')) return;
-            keys[e.key.toLowerCase()] = true;
-            if (e.key === ' ') socket.emit('action', { type: 'attack' });
-            if (e.key === 'm') toggleMute();
-            if (e.shiftKey && e.key === 'A' && user.username === 'beka_ei') document.getElementById('admin').style.display = 'block';
-        };
-        window.onkeyup = (e) => keys[e.key.toLowerCase()] = false;
-
-        setInterval(() => {
+            // 1. Apply Input Locally (Instant Response)
             let dx = 0, dy = 0;
-            if (keys['w']) dy--; if (keys['s']) dy++;
-            if (keys['a']) dx--; if (keys['d']) dx++;
-            if (dx || dy) {
-                // Normalize
+            if (keyState['w']) dy -= 1; if (keyState['s']) dy += 1;
+            if (keyState['a']) dx -= 1; if (keyState['d']) dx += 1;
+
+            // Joystick
+            if (joyActive) { dx = joyData.x; dy = joyData.y; }
+
+            if (dx !== 0 || dy !== 0) {
+                // Normalize diagonal
                 const len = Math.sqrt(dx * dx + dy * dy);
-                socket.emit('move', { x: dx / len, y: dy / len });
+                if (len > 1) { dx /= len; dy /= len; } // Joy is already normalized usually
+
+                // Move local pos
+                myPos.x += dx * SPEED * (dt * 30); // scale to approx 30fps speed
+                myPos.y += dy * SPEED * (dt * 30);
+
+                // Clamp to map
+                myPos.x = Math.max(20, Math.min(1480, myPos.x));
+                myPos.y = Math.max(20, Math.min(1480, myPos.y));
+
+                // Send to server (Rate limited in server usually, but we send raw input here)
+                // Sending delta to server is safer, but sending intent is smoother
+                socket.emit('playerMove', { dx: dx, dy: dy });
             }
-        }, 1000 / 30); // 30fps input rate
 
-        // --- 4. ADMIN ---
-        function adm(cmd) {
-            let val = null;
-            if (cmd === 'giveCoins') val = 100;
-            socket.emit('adminCmd', { username: user.username, scope: 'global', cmd, val });
+            // 2. Reconciliation (Soft Correction)
+            // If we are too far from server, gently pull back. If WAY too far, snap.
+            const dist = Math.hypot(myPos.x - serverPos.x, myPos.y - serverPos.y);
+            if (dist > 200) {
+                // Teleport (Lag spike or cheat correction)
+                myPos.x = serverPos.x;
+                myPos.y = serverPos.y;
+            } else if (dist > 20) {
+                // Smooth drift correction (Rubber band fix)
+                myPos.x += (serverPos.x - myPos.x) * 0.1;
+                myPos.y += (serverPos.y - myPos.y) * 0.1;
+            }
+
+            // 3. Render Me
+            const myEl = document.getElementById('p-' + myId);
+            if (myEl) {
+                myEl.style.left = myPos.x + 'px';
+                myEl.style.top = myPos.y + 'px';
+            }
+
+            // 4. Camera Follow
+            const stage = document.getElementById('gameStage');
+            let cx = (stage.clientWidth / 2) - myPos.x;
+            let cy = (stage.clientHeight / 2) - myPos.y;
+            // Clamp camera
+            cx = Math.min(0, Math.max(cx, stage.clientWidth - 1500));
+            cy = Math.min(0, Math.max(cy, stage.clientHeight - 1500));
+            map.style.transform = `translate3d(${cx}px, ${cy}px, 0)`;
+
+            requestAnimationFrame(gameLoop);
         }
+        requestAnimationFrame(gameLoop);
 
-        // --- 5. VOICE CHAT (PeerJS) ---
-        let peer;
-        let myStream;
+        // --- SERVER UPDATES ---
+        socket.on('gameStateUpdate', (s) => {
+            // HUD
+            document.getElementById('dayDisp').innerText = s.day;
+            document.getElementById('timeDisp').innerText = s.timer;
+            if (s.players[myId]) document.getElementById('hpDisp').innerText = Math.floor(s.players[myId].hp);
 
-        function initVoice() {
-            peer = new Peer();
-            navigator.mediaDevices.getUserMedia({ audio: true }).then(stream => {
-                myStream = stream;
-                document.getElementById('voiceStatus').innerText = "ON";
-                document.getElementById('voiceStatus').style.color = "lime";
+            // Update Server Pos for Reconciliation
+            if (s.players[myId]) {
+                serverPos.x = s.players[myId].x;
+                serverPos.y = s.players[myId].y;
+            }
 
-                peer.on('call', call => {
-                    call.answer(stream);
-                    call.on('stream', userAudio => playAudio(userAudio));
-                });
+            // Render Others (Interpolated in CSS transition)
+            ents.innerHTML = '';
 
-                socket.emit('voice-join', peer.id);
+            // ME (Already rendered in loop, but need to create DOM if missing)
+            if (!document.getElementById('p-' + myId)) {
+                const d = document.createElement('div'); d.id = 'p-' + myId; d.className = 'entity player-dot';
+                d.style.background = '#0f0'; d.innerHTML = '🏃';
+                ents.appendChild(d);
+            }
+
+            // OTHERS
+            for (const pid in s.players) {
+                if (pid === myId || !s.players[pid].alive) continue;
+                const p = s.players[pid];
+                const d = document.createElement('div'); d.className = 'entity player-dot';
+                d.style.left = p.x + 'px'; d.style.top = p.y + 'px'; d.style.borderColor = p.color;
+                d.innerHTML = `<div class="name-tag">${p.username}</div>🏃`;
+                ents.appendChild(d);
+            }
+
+            // WOLVES
+            s.wolves.forEach(w => {
+                if (w.hp > 0) {
+                    const d = document.createElement('div'); d.className = 'entity wolf';
+                    d.style.left = w.x + 'px'; d.style.top = w.y + 'px'; d.innerText = '🐺';
+                    ents.appendChild(d);
+                }
             });
-        }
 
-        socket.on('user-connected', (userId) => {
-            if (myStream) {
-                const call = peer.call(userId, myStream);
-                call.on('stream', userAudio => playAudio(userAudio));
-            }
+            // CHESTS
+            s.chests.forEach(c => {
+                if (!c.opened) {
+                    const d = document.createElement('div'); d.className = 'entity chest';
+                    d.style.left = c.x + 'px'; d.style.top = c.y + 'px'; d.innerText = '📦';
+                    ents.appendChild(d);
+                }
+            });
         });
 
-        function playAudio(stream) {
-            const audio = document.createElement('audio');
-            audio.srcObject = stream;
-            audio.play();
-        }
+        // --- CONTROLS ---
+        window.onkeydown = (e) => {
+            if (document.activeElement === document.getElementById('chatInput')) return;
+            keyState[e.key.toLowerCase()] = true;
+            if (e.key === 'e') sendAct('loot');
+            if (e.key === ' ') sendAct('attack');
+        };
+        window.onkeyup = (e) => keyState[e.key.toLowerCase()] = false;
 
-        function toggleMute() {
-            if (myStream) {
-                const track = myStream.getAudioTracks()[0];
-                track.enabled = !track.enabled;
-                alert(track.enabled ? "Mic On" : "Mic Muted");
-            } else {
-                initVoice();
+        function sendAct(t) { socket.emit('playerAction', { type: t }); }
+
+        // --- CHAT ---
+        const chatIn = document.getElementById('chatInput');
+        chatIn.onkeydown = (e) => {
+            if (e.key === 'Enter' && chatIn.value.trim()) {
+                socket.emit('sendChat', chatIn.value.trim());
+                chatIn.value = '';
             }
+        };
+        socket.on('chatMsg', (data) => {
+            const h = document.getElementById('chatHistory');
+            const d = document.createElement('div'); d.className = 'chat-msg';
+            d.innerHTML = `<span class="chat-user" style="color:${data.color}">${data.user}:</span> ${data.text}`;
+            h.appendChild(d);
+            h.scrollTop = h.scrollHeight;
+        });
+        socket.on('alert', (d) => {
+            const a = document.getElementById('alertBox');
+            a.innerText = d.msg; a.style.color = d.color; a.style.opacity = 1;
+            setTimeout(() => a.style.opacity = 0, 3000);
+        });
+
+        // --- JOYSTICK LOGIC ---
+        let joyActive = false; let joyData = { x: 0, y: 0 };
+        const jBase = document.getElementById('joyBase'); const jKnob = document.getElementById('joyKnob');
+        jBase.addEventListener('touchstart', (e) => { joyActive = true; moveJoy(e.touches[0]); }, { passive: false });
+        jBase.addEventListener('touchmove', (e) => { e.preventDefault(); if (joyActive) moveJoy(e.touches[0]); }, { passive: false });
+        jBase.addEventListener('touchend', () => { joyActive = false; jKnob.style.transform = 'translate(-50%,-50%)'; joyData = { x: 0, y: 0 }; });
+        function moveJoy(t) {
+            const r = jBase.getBoundingClientRect();
+            let x = t.clientX - (r.left + r.width / 2); let y = t.clientY - (r.top + r.height / 2);
+            const d = Math.sqrt(x * x + y * y); const max = r.width / 2;
+            if (d > max) { x = (x / d) * max; y = (y / d) * max; }
+            jKnob.style.transform = `translate(calc(-50% + ${x}px), calc(-50% + ${y}px))`;
+            joyData = { x: x / max, y: y / max };
         }
     </script>
 </body>
