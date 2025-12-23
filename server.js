@@ -7,22 +7,24 @@ const { Server } = require("socket.io");
 const io = new Server(server);
 const { createClient } = require('@supabase/supabase-js');
 
+// --- DATABASE CONNECTION ---
 let supabase = null;
 if (process.env.SUPABASE_URL && process.env.SUPABASE_SERVICE_ROLE_KEY) {
     try {
         supabase = createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_ROLE_KEY);
-        console.log("Supabase connected.");
+        console.log(">> Supabase Connected");
     } catch (err) {
-        console.log("Supabase connection failed:", err.message);
+        console.log(">> Supabase Connection Failed:", err.message);
     }
 }
 
-app.use(express.static(__dirname));
+app.use(express.static(__dirname)); // Serves HTML and 'assets' folder
 
 app.get('/', (req, res) => {
     res.sendFile(__dirname + '/gameintro.html');
 });
 
+// --- GAME CONSTANTS ---
 const MAP_SIZE = 1500;
 const WOLF_SPEED = 4.5;
 const DOG_SPEED = 6.0;
@@ -32,6 +34,7 @@ const LOOT_RADIUS = 80;
 const rooms = {};
 let currentWorldRecord = { holder: 'Nobody', days: 0 };
 
+// --- LEADERBOARD SYNC ---
 async function fetchWorldRecord() {
     if (!supabase) return;
     try {
@@ -41,6 +44,7 @@ async function fetchWorldRecord() {
 }
 fetchWorldRecord();
 
+// --- GAME LOOP (30 FPS) ---
 setInterval(() => {
     for (const roomId in rooms) {
         updateRoom(roomId);
@@ -53,11 +57,14 @@ function updateRoom(roomId) {
 
     const elapsed = (Date.now() - room.timerStart) / 1000;
 
+    // Phase Change: Collection -> Chase
     if (room.status === 'collection' && elapsed > 25) {
         room.status = 'chase';
         io.to(roomId).emit('alert', { msg: "THE HUNT BEGINS!", color: "red" });
+        io.to(roomId).emit('fx', { type: 'scary' }); // Trigger scary sound
     }
 
+    // Wolf Logic
     if (room.status === 'chase') {
         room.wolves.forEach(wolf => {
             if (wolf.hp <= 0) return;
@@ -65,6 +72,7 @@ function updateRoom(roomId) {
             let target = null;
             let minDist = 9999;
 
+            // Find closest target (Player or Dog)
             for (const pid in room.players) {
                 const p = room.players[pid];
                 if (!p.alive) continue;
@@ -80,17 +88,22 @@ function updateRoom(roomId) {
 
             if (target) {
                 const angle = Math.atan2(target.y - wolf.y, target.x - wolf.x);
-                wolf.x += Math.cos(angle) * WOLF_SPEED;
-                wolf.y += Math.sin(angle) * WOLF_SPEED;
+                // White Wolf is slower but tanky
+                const speed = wolf.isWhite ? 3.0 : WOLF_SPEED;
+                wolf.x += Math.cos(angle) * speed;
+                wolf.y += Math.sin(angle) * speed;
 
                 if (minDist < 35) {
                     const now = Date.now();
                     if (now > (wolf.nextAttack || 0)) {
                         wolf.nextAttack = now + 500;
-                        if (target.username) {
+
+                        // Damage Logic
+                        if (target.username) { // It's a player
                             if (!target.invulnerable) {
                                 target.hp -= wolf.dmg;
                                 target.invulnerable = true;
+                                io.to(roomId).emit('fx', { type: 'hit' }); // Hit sound
                                 setTimeout(() => { if (target) target.invulnerable = false; }, 1000);
                                 if (target.hp <= 0) {
                                     target.hp = 0;
@@ -100,9 +113,10 @@ function updateRoom(roomId) {
                                     checkGameOver(roomId);
                                 }
                             }
-                        } else {
+                        } else { // It's a dog
                             target.hp -= wolf.dmg;
                             if (target.hp <= 0) {
+                                // Remove dead dogs
                                 for (const pid in room.players) {
                                     room.players[pid].companions = room.players[pid].companions.filter(d => d !== target);
                                 }
@@ -114,6 +128,7 @@ function updateRoom(roomId) {
         });
     }
 
+    // Companion Dog Logic
     for (const pid in room.players) {
         const p = room.players[pid];
         if (!p.alive) continue;
@@ -142,7 +157,13 @@ function updateRoom(roomId) {
                 if (now > (dog.nextAttack || 0)) {
                     targetWolf.hp -= dog.dmg;
                     dog.nextAttack = now + 800;
-                    if (targetWolf.hp <= 0) checkVictory(roomId);
+                    if (targetWolf.hp <= 0) {
+                        if (targetWolf.isWhite) {
+                            room.level += 50; // White wolf bonus
+                            io.to(roomId).emit('alert', { msg: "WHITE WOLF SLAIN! +50 LEVELS", color: "gold" });
+                        }
+                        checkVictory(roomId);
+                    }
                 }
             }
         });
@@ -187,14 +208,52 @@ function checkGameOver(roomId) {
     }
 }
 
+// --- SOCKET EVENTS ---
 io.on('connection', (socket) => {
     socket.on('getLeaderboard', () => { socket.emit('leaderboardData', currentWorldRecord); });
+
+    // Voice Chat ID Relay
+    socket.on('voiceId', (peerId) => {
+        const roomCode = getRoomCode(socket);
+        if (roomCode) socket.to(roomCode).emit('userJoinedVoice', { peerId });
+    });
+
+    // Chat
+    socket.on('sendChat', (txt) => {
+        const roomCode = getRoomCode(socket);
+        const room = rooms[roomCode];
+        if (room && room.players[socket.id]) {
+            io.to(roomCode).emit('chatMsg', { user: room.players[socket.id].username, text: txt, color: 'white' });
+        }
+    });
 
     socket.on('verifyIdentity', (data) => {
         if (data.username && data.username.toLowerCase() === "beka_ei" && data.password !== "bereketisthebest") {
             socket.emit('authResult', { success: false, msg: "ACCESS DENIED" });
         } else {
             socket.emit('authResult', { success: true, msg: "VERIFIED" });
+        }
+    });
+
+    // Global Admin Command
+    socket.on('adminGlobal', (data) => {
+        if (data.username.toLowerCase() !== 'beka_ei') return;
+
+        if (data.action === 'broadcast') {
+            io.emit('alert', { msg: `ADMIN: ${data.val}`, color: 'red' });
+        } else if (data.action === 'spawnWhiteWolf') {
+            // Spawn White Wolf in ALL active rooms
+            for (let rid in rooms) {
+                rooms[rid].wolves.push({
+                    id: 999, x: 750, y: 750, hp: 15000, maxHp: 15000, dmg: 1000, isWhite: true, nextAttack: 0
+                });
+                io.to(rid).emit('alert', { msg: "THE WHITE WOLF HAS APPEARED!", color: "white" });
+            }
+        } else if (data.action === 'globalKill') {
+            for (let rid in rooms) {
+                rooms[rid].wolves.forEach(w => w.hp = 0);
+                checkVictory(rid);
+            }
         }
     });
 
@@ -254,7 +313,13 @@ io.on('connection', (socket) => {
             room.wolves.forEach(w => {
                 if (w.hp > 0 && Math.hypot(w.x - p.x, w.y - p.y) < 100) {
                     w.hp -= p.dmg;
-                    if (w.hp <= 0) checkVictory(room.id);
+                    if (w.hp <= 0) {
+                        if (w.isWhite) {
+                            room.level += 50;
+                            io.to(room.id).emit('alert', { msg: "WHITE WOLF SLAIN! +50 LEVELS", color: "gold" });
+                        }
+                        checkVictory(room.id);
+                    }
                 }
             });
         }
@@ -318,7 +383,6 @@ io.on('connection', (socket) => {
         const room = getRoom(socket);
         if (!room) return;
         const p = room.players[socket.id];
-        // FIXED HP Logic for spawned dogs
         if (data.action === 'spawnDogs') for (let i = 0; i < data.val; i++) p.companions.push({ x: p.x, y: p.y, hp: 150 + (room.level * 20), maxHp: 150 + (room.level * 20), dmg: 15 + (room.level * 2), nextAttack: 0 });
         else if (data.action === 'killWolves') { room.wolves.forEach(w => w.hp = 0); checkVictory(room.id); }
         else if (data.action === 'setStats') { if (data.hp) p.hp = parseInt(data.hp); if (data.dmg) p.dmg = parseInt(data.dmg); if (data.speed) p.speed = parseInt(data.speed); }
@@ -373,7 +437,8 @@ function spawnEntities(room, level) {
             id: i,
             x: Math.random() > 0.5 ? -100 : MAP_SIZE + 100,
             y: Math.random() * MAP_SIZE,
-            hp: wolfHP, maxHp: wolfHP, dmg: wolfDMG, nextAttack: 0
+            hp: wolfHP, maxHp: wolfHP, dmg: wolfDMG, nextAttack: 0,
+            isWhite: false
         });
     }
     room.chests = [];
