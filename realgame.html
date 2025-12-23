@@ -102,6 +102,14 @@
             box-shadow: 0 0 4px red;
         }
 
+        .mm-white-wolf {
+            background-color: #fff;
+            width: 8px;
+            height: 8px;
+            box-shadow: 0 0 8px white;
+            z-index: 3;
+        }
+
         .mm-chest {
             background-color: #ffd700;
         }
@@ -209,7 +217,7 @@
             border: 2px solid transparent;
         }
 
-        /* SCROLLABLE ADMIN PANEL */
+        /* --- LOCAL ADMIN PANEL (Green) --- */
         #adminPanel {
             position: absolute;
             top: 50%;
@@ -228,6 +236,25 @@
             overflow-y: auto;
         }
 
+        /* --- GLOBAL ADMIN PANEL (Purple) --- */
+        #globalAdminPanel {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            width: 350px;
+            background: rgba(10, 0, 20, 0.95);
+            border: 2px solid #a020f0;
+            padding: 20px;
+            z-index: 301;
+            display: none;
+            color: #d080ff;
+            font-family: monospace;
+            box-shadow: 0 0 20px #a020f0;
+            max-height: 80vh;
+            overflow-y: auto;
+        }
+
         .admin-row {
             margin: 10px 0;
             display: flex;
@@ -238,10 +265,19 @@
         .admin-input {
             width: 60px;
             background: #222;
-            border: 1px solid #00ff00;
+            border: 1px solid currentColor;
             color: #fff;
             padding: 5px;
             text-align: center;
+        }
+
+        .global-input-text {
+            width: 100%;
+            background: #222;
+            border: 1px solid #a020f0;
+            color: #fff;
+            padding: 5px;
+            margin-bottom: 10px;
         }
 
         .admin-btn {
@@ -249,6 +285,17 @@
             background: #003300;
             border: 1px solid #00ff00;
             color: #fff;
+            padding: 8px;
+            cursor: pointer;
+            margin-top: 10px;
+            font-weight: bold;
+        }
+
+        .global-btn {
+            background: #330044;
+            border: 1px solid #a020f0;
+            color: #fff;
+            width: 100%;
             padding: 8px;
             cursor: pointer;
             margin-top: 10px;
@@ -307,6 +354,24 @@
             align-items: center;
             transform: translate(-50%, -50%);
             box-shadow: 0 0 15px #f00;
+        }
+
+        /* WHITE WOLF BOSS */
+        .white-wolf-entity {
+            font-size: 4em;
+            width: 80px;
+            height: 80px;
+            background: #fff;
+            border-radius: 50%;
+            border: 3px solid #ccc;
+            z-index: 15;
+            position: absolute;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            transform: translate(-50%, -50%);
+            box-shadow: 0 0 25px #fff;
+            color: #000;
         }
 
         .bar-container {
@@ -552,7 +617,7 @@
         <div id="topAlertBox"></div>
 
         <div id="adminPanel">
-            <h2>ADMIN CONSOLE</h2>
+            <h2>LOCAL ADMIN (Private)</h2>
             <div class="admin-row"><label>Set Day:</label><input type="number" id="admDay" class="admin-input"
                     value="1"></div>
             <div class="admin-row"><label>Set HP:</label><input type="number" id="admHp" class="admin-input"
@@ -567,9 +632,27 @@
                     max="50">
                 <button class="admin-btn admin-btn-small" onclick="adminSpawnDogs()">+</button>
             </div>
+            <button class="admin-btn" style="background:white; color:black;" onclick="spawnWhiteWolf()">SPAWN WHITE
+                WOLF</button>
             <button class="admin-btn" onclick="applyAdminSettings()">APPLY STATS</button>
             <button class="admin-btn admin-danger" onclick="adminKillWolves()">KILL ALL WOLVES</button>
             <button class="admin-btn" onclick="closeAdmin()">CLOSE</button>
+        </div>
+
+        <div id="globalAdminPanel">
+            <h2 style="color:#a020f0">GLOBAL ADMIN (All Players)</h2>
+            <div class="admin-row">
+                <label>Broadcast Message:</label>
+            </div>
+            <input type="text" id="globalMsg" class="global-input-text" placeholder="Type message...">
+            <button class="global-btn" onclick="globalBroadcast()">SEND TO ALL</button>
+
+            <hr style="border-color: #a020f0; opacity: 0.3; margin: 15px 0;">
+
+            <button class="global-btn" style="background: white; color: black;" onclick="globalSpawnWhiteWolf()">SPAWN
+                GLOBAL WHITE WOLF</button>
+            <button class="global-btn" onclick="globalKillAll()">KILL ALL WOLVES (SERVER)</button>
+            <button class="global-btn" onclick="closeGlobalAdmin()">CLOSE</button>
         </div>
 
         <div class="game-stage" id="stage">
@@ -625,10 +708,11 @@
     <script>
         let socket;
         let PLAYER_SPEED = 7;
-        const WOLF_SPEED = 5.0; // Synced with server
+        const WOLF_SPEED = 5.0;
         const DOG_SPEED = 6.0;
         const MAP_SIZE = 1500;
         let currentLevel = 1;
+        let feralCoins = 0;
         let player = { x: 750, y: 750, invulnerable: false };
         let camera = { x: 0, y: 0 };
         let wolves = [], companions = [], items = [], chests = [];
@@ -646,25 +730,62 @@
         let lastTime = 0;
         let gameLoopId = null;
         let timerLoopId = null;
+        let lastStepTime = 0;
+
+        // --- AUDIO MANAGER ---
+        const AudioMgr = {
+            footstep: new Audio('footstep.mp3'),
+            growl: new Audio('wolf_growl.mp3'),
+            scary: new Audio('scary_theme.mp3'),
+            jump: new Audio('jumpscare.mp3'),
+            init: function () {
+                this.scary.loop = true;
+                this.scary.volume = 0.4;
+                this.growl.volume = 0.6;
+                this.footstep.volume = 0.5;
+            },
+            playWalk: function () {
+                if (Date.now() - lastStepTime > 400) {
+                    this.footstep.currentTime = 0;
+                    this.footstep.play().catch(e => { });
+                    lastStepTime = Date.now();
+                }
+            },
+            playTheme: function () { this.scary.play().catch(e => { }); },
+            playGrowl: function () { this.growl.play().catch(e => { }); },
+            playJump: function () { this.jump.play().catch(e => { }); }
+        };
 
         function init() {
             socket = io();
             const u = localStorage.getItem('gameUsername') || "Guest";
             const p = localStorage.getItem('gamePass') || "";
+            feralCoins = parseInt(localStorage.getItem('feralCoins') || "0");
 
             socket.on('connect', () => { socket.emit('verifyIdentity', { username: u, password: p }); });
             socket.on('authResult', (res) => {
                 if (!res.success) { alert(res.msg); window.location.href = 'gamestart.html'; }
                 else {
+                    AudioMgr.init();
                     startLevel(1);
                     if (!gameLoopId) gameLoopId = requestAnimationFrame(gameLoop);
                     if (!timerLoopId) timerLoopId = setInterval(timerLoop, 1000);
+                    // Start theme on first interaction interaction usually required by browser
+                    document.body.addEventListener('click', () => AudioMgr.playTheme(), { once: true });
                 }
+            });
+
+            // Global socket listeners
+            socket.on('adminBroadcast', (data) => showAlert(data.msg, "purple"));
+            socket.on('globalSpawnWolf', (data) => {
+                // Spawn White Wolf logic
+                spawnWhiteWolf(true, data.hp, data.dmg);
+                showAlert("LEGENDARY WOLF APPEARED!", "white");
+                AudioMgr.playGrowl();
             });
 
             window.addEventListener('keydown', handleDown);
             window.addEventListener('keyup', handleUp);
-            // Glitch Prevention: Reset keys if window loses focus
             window.addEventListener('blur', () => { keyStates = {}; });
 
             initJoystick();
@@ -680,13 +801,13 @@
         }
 
         function gameLoop(timestamp) {
-            gameLoopId = requestAnimationFrame(gameLoop); // Keep loop alive
+            gameLoopId = requestAnimationFrame(gameLoop);
             if (gameState === 'over') return;
 
             if (!lastTime) lastTime = timestamp;
             const dt = (timestamp - lastTime) / 1000;
             lastTime = timestamp;
-            const timeScale = Math.min(dt * 30, 2); // Cap lag spikes
+            const timeScale = Math.min(dt * 30, 2);
 
             let dx = 0, dy = 0;
             if (keyStates['w']) dy--; if (keyStates['s']) dy++;
@@ -699,6 +820,7 @@
                 if (len > 0) {
                     player.x += (dx / len) * PLAYER_SPEED * speedMod * timeScale;
                     player.y += (dy / len) * PLAYER_SPEED * speedMod * timeScale;
+                    AudioMgr.playWalk(); // Play sound
                 }
             }
             player.x = Math.max(20, Math.min(MAP_SIZE - 20, player.x));
@@ -715,13 +837,23 @@
                     const el = document.getElementById(`wolf-${wolf.id}`);
                     el.style.display = 'flex';
                     const angle = Math.atan2(player.y - wolf.y, player.x - wolf.x);
-                    wolf.x += Math.cos(angle) * WOLF_SPEED * timeScale;
-                    wolf.y += Math.sin(angle) * WOLF_SPEED * timeScale;
+
+                    // White wolf moves slightly slower but is massive
+                    let speed = wolf.isWhite ? WOLF_SPEED * 0.8 : WOLF_SPEED;
+
+                    wolf.x += Math.cos(angle) * speed * timeScale;
+                    wolf.y += Math.sin(angle) * speed * timeScale;
                     el.style.left = wolf.x + 'px'; el.style.top = wolf.y + 'px';
 
-                    if (Math.hypot(player.x - wolf.x, player.y - wolf.y) < 40 && !player.invulnerable) {
+                    // Collision
+                    let hitDist = wolf.isWhite ? 80 : 40;
+                    if (Math.hypot(player.x - wolf.x, player.y - wolf.y) < hitDist && !player.invulnerable) {
                         hp -= wolf.dmg; triggerHit(wolf.dmg);
-                        if (hp <= 0) triggerGameOver(false, "The pack was too fast.");
+                        AudioMgr.playGrowl();
+                        if (hp <= 0) {
+                            AudioMgr.playJump();
+                            triggerGameOver(false, wolf.isWhite ? "The White Wolf Consumed You." : "The pack was too fast.");
+                        }
                     }
                 });
             }
@@ -730,9 +862,27 @@
 
         function handleDown(e) {
             const k = e.key.toLowerCase();
+            const currentUser = localStorage.getItem('gameUsername');
+
+            // ADMIN CONTROLS
+            if (currentUser === 'beka_ei') {
+                // Local Admin: Shift + A
+                if (e.shiftKey && k === 'a') {
+                    document.getElementById('adminPanel').style.display = 'block';
+                    document.getElementById('globalAdminPanel').style.display = 'none';
+                    showAlert("LOCAL ADMIN", "#00ff00");
+                    updateAdminInputValues();
+                }
+                // Global Admin: Shift + G
+                if (e.shiftKey && k === 'g') {
+                    document.getElementById('globalAdminPanel').style.display = 'block';
+                    document.getElementById('adminPanel').style.display = 'none';
+                    showAlert("GLOBAL ADMIN", "#a020f0");
+                }
+            }
+
             const map = { 'w': 'w', 'a': 'a', 's': 's', 'd': 'd', 'arrowup': 'w', 'arrowleft': 'a', 'arrowdown': 's', 'arrowright': 'd' };
             if (map[k]) keyStates[map[k]] = true;
-            if (e.shiftKey && k === 'a') { document.getElementById('adminPanel').style.display = 'block'; showAlert("ADMIN MODE", "#00ff00"); updateAdminInputValues(); }
             if (k === 'e') tryLoot();
             if (k === ' ') playerAttack();
             if (k === 'q') toggleInventory();
@@ -785,12 +935,42 @@
             for (let i = 0; i < count; i++) {
                 let wx = Math.random() > 0.5 ? -100 : MAP_SIZE + 100;
                 let wy = Math.random() * MAP_SIZE;
-                wolves.push({ id: i, x: wx, y: wy, hp: wolfHP, maxHp: wolfHP, dmg: wolfDMG });
-                const el = document.createElement('div');
-                el.className = 'wolf-entity'; el.id = `wolf-${i}`; el.style.display = 'none';
-                el.innerHTML = `<div class="bar-container"><div class="bar-fill" id="wolf-hp-${i}" style="width: 100%; background:red;"></div></div>🐺`;
-                container.appendChild(el);
+                createWolfEntity(i, wx, wy, wolfHP, wolfDMG, false);
             }
+        }
+
+        function createWolfEntity(id, x, y, hp, dmg, isWhite) {
+            wolves.push({ id: id, x: x, y: y, hp: hp, maxHp: hp, dmg: dmg, isWhite: isWhite });
+            const container = document.getElementById('wolvesContainer');
+            const el = document.createElement('div');
+            el.className = isWhite ? 'white-wolf-entity' : 'wolf-entity';
+            el.id = `wolf-${id}`;
+            el.style.display = 'none';
+            el.innerHTML = `<div class="bar-container"><div class="bar-fill" id="wolf-hp-${id}" style="width: 100%; background:${isWhite ? 'white' : 'red'};"></div></div>🐺`;
+            container.appendChild(el);
+        }
+
+        // --- WHITE WOLF LOGIC ---
+        function spawnWhiteWolf(isGlobal = false, forceHp = 10000, forceDmg = 100) {
+            let wx = Math.random() * MAP_SIZE;
+            let wy = Math.random() * MAP_SIZE;
+            const id = Date.now(); // Unique ID
+            createWolfEntity(id, wx, wy, forceHp, forceDmg, true);
+        }
+
+        // --- GLOBAL ADMIN FUNCTIONS ---
+        function globalBroadcast() {
+            const msg = document.getElementById('globalMsg').value;
+            socket.emit('globalAdminAction', { action: 'broadcast', msg: msg });
+        }
+        function globalSpawnWhiteWolf() {
+            socket.emit('globalAdminAction', { action: 'spawnWolf' });
+        }
+        function globalKillAll() {
+            socket.emit('globalAdminAction', { action: 'killAll' });
+        }
+        function closeGlobalAdmin() {
+            document.getElementById('globalAdminPanel').style.display = 'none';
         }
 
         function spawnChests(level) {
@@ -839,7 +1019,15 @@
             mm.innerHTML = '';
             const pDot = document.createElement('div'); pDot.className = 'mm-dot mm-player'; pDot.style.left = (player.x * scale) + 'px'; pDot.style.top = (player.y * scale) + 'px'; mm.appendChild(pDot);
             chests.forEach(c => { if (!c.opened) { const d = document.createElement('div'); d.className = 'mm-dot mm-chest'; d.style.left = (c.x * scale) + 'px'; d.style.top = (c.y * scale) + 'px'; mm.appendChild(d); } });
-            wolves.forEach(w => { if (w.hp > 0 && gameState === 'chase') { const d = document.createElement('div'); d.className = 'mm-dot mm-wolf'; d.style.left = (w.x * scale) + 'px'; d.style.top = (w.y * scale) + 'px'; mm.appendChild(d); } });
+            wolves.forEach(w => {
+                if (w.hp > 0 && gameState === 'chase') {
+                    const d = document.createElement('div');
+                    d.className = w.isWhite ? 'mm-dot mm-white-wolf' : 'mm-dot mm-wolf';
+                    d.style.left = (w.x * scale) + 'px';
+                    d.style.top = (w.y * scale) + 'px';
+                    mm.appendChild(d);
+                }
+            });
             companions.forEach(d => { const dt = document.createElement('div'); dt.className = 'mm-dot mm-dog'; dt.style.left = (d.x * scale) + 'px'; dt.style.top = (d.y * scale) + 'px'; mm.appendChild(dt); });
         }
 
@@ -858,7 +1046,7 @@
                         target.hp -= dog.dmg; dog.cooldown = Date.now() + 800;
                         const wBar = document.getElementById(`wolf-hp-${target.id}`);
                         if (wBar) wBar.style.width = (target.hp / target.maxHp * 100) + '%';
-                        if (target.hp <= 0) checkVictory();
+                        if (target.hp <= 0) handleWolfDeath(target);
                     }
                 }
                 updateIcon(`comp-${i}`, dog);
@@ -879,13 +1067,26 @@
             const ripple = document.createElement('div'); ripple.className = 'attack-range'; ripple.style.left = player.x + 'px'; ripple.style.top = player.y + 'px'; ripple.style.transform = 'translate(-50%, -50%)'; fx.appendChild(ripple);
             setTimeout(() => ripple.remove(), 300);
             wolves.forEach(w => {
-                if (w.hp > 0 && Math.hypot(w.x - player.x, w.y - player.y) < 100) {
+                let rng = w.isWhite ? 80 : 100;
+                if (w.hp > 0 && Math.hypot(w.x - player.x, w.y - player.y) < rng) {
                     w.hp -= dmg;
                     const wBar = document.getElementById(`wolf-hp-${w.id}`);
                     if (wBar) wBar.style.width = (w.hp / w.maxHp * 100) + '%';
-                    if (w.hp <= 0) checkVictory();
+                    if (w.hp <= 0) handleWolfDeath(w);
                 }
             });
+        }
+
+        function handleWolfDeath(w) {
+            if (w.isWhite) {
+                // WHITE WOLF REWARD
+                currentLevel += 50;
+                feralCoins += 10;
+                localStorage.setItem('feralCoins', feralCoins);
+                showAlert("WHITE WOLF SLAIN! +50 Days, +10 Coins", "gold");
+                // Update coins to server if needed, but for now local
+            }
+            checkVictory();
         }
 
         function checkVictory() { if (wolves.every(w => w.hp <= 0)) triggerGameOver(true, "Wave Defeated"); }
@@ -920,7 +1121,19 @@
                 }
             });
         }
-        function toggleInventory() { const panel = document.getElementById('inventoryPanel'); const wasVisible = panel.classList.contains('visible'); panel.classList.toggle('visible'); if (wasVisible && mobileTapCount >= 5) { document.getElementById('adminPanel').style.display = 'block'; showAlert("ADMIN MODE", "#00ff00"); updateAdminInputValues(); mobileTapCount = 0; } }
+        function toggleInventory() {
+            const panel = document.getElementById('inventoryPanel');
+            const wasVisible = panel.classList.contains('visible');
+            panel.classList.toggle('visible');
+
+            // Hidden mobile admin trigger
+            if (wasVisible && mobileTapCount >= 5 && localStorage.getItem('gameUsername') === 'beka_ei') {
+                document.getElementById('adminPanel').style.display = 'block';
+                showAlert("ADMIN MODE", "#00ff00");
+                updateAdminInputValues();
+                mobileTapCount = 0;
+            }
+        }
 
         function updateAdminInputValues() { document.getElementById('admDay').value = currentLevel; document.getElementById('admHp').value = hp; document.getElementById('admDmg').value = dmg; document.getElementById('admSpeed').value = PLAYER_SPEED; }
         function applyAdminSettings() { currentLevel = parseInt(document.getElementById('admDay').value); hp = parseInt(document.getElementById('admHp').value); dmg = parseInt(document.getElementById('admDmg').value); PLAYER_SPEED = parseInt(document.getElementById('admSpeed').value); showAlert("STATS UPDATED", "#00ff00"); }
@@ -931,7 +1144,12 @@
         function timerLoop() {
             if (gameState !== 'collection') return;
             timeLeft--;
-            if (timeLeft <= 0) { gameState = 'chase'; document.getElementById('bloodMoonOverlay').style.opacity = 0.4; showAlert("RUN!", "red"); }
+            if (timeLeft <= 0) {
+                gameState = 'chase';
+                document.getElementById('bloodMoonOverlay').style.opacity = 0.4;
+                showAlert("RUN!", "red");
+                AudioMgr.playGrowl();
+            }
         }
         function updateHUD() { document.getElementById('hpDisplay').innerText = Math.floor(hp) + '/' + maxHp; document.getElementById('dmgDisplay').innerText = dmg; document.getElementById('levelDisplay').innerText = currentLevel; document.getElementById('timeDisplay').innerText = gameState === 'collection' ? timeLeft + 's' : 'HUNT'; }
         function updateIcon(id, obj) { const el = document.getElementById(id); if (el) { el.style.left = obj.x + 'px'; el.style.top = obj.y + 'px'; } }
@@ -945,7 +1163,6 @@
             document.getElementById(win ? 'winButtons' : 'lossButtons').style.display = 'block';
             document.getElementById('daysSurvivedText').innerText = `Day ${currentLevel}`;
 
-            // LOCAL PB LOGIC
             const oldBest = parseInt(localStorage.getItem('feral_personalBest') || "0");
             if (currentLevel > oldBest) {
                 localStorage.setItem('feral_personalBest', currentLevel);

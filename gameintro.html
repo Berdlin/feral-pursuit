@@ -111,6 +111,19 @@
             color: #888;
         }
 
+        .coin-box {
+            background: #110022;
+            border: 1px solid gold;
+            color: gold;
+            padding: 10px;
+            margin: 10px auto;
+            width: fit-content;
+            font-family: 'Cinzel';
+            font-size: 1.2em;
+            border-radius: 5px;
+            box-shadow: 0 0 10px gold;
+        }
+
         .btn {
             display: inline-block;
             padding: 15px 40px;
@@ -144,6 +157,10 @@
     <div class="background-fx"></div>
     <div class="container">
         <h1>FERAL PURSUIT</h1>
+
+        <div class="coin-box">
+            FERAL COINS: <span id="coinDisplay">0</span>
+        </div>
 
         <div class="record-box">
             <div class="stat">
@@ -182,11 +199,12 @@
                     <li><span class="key">W</span><span class="key">A</span><span class="key">S</span><span
                             class="key">D</span> : Move Operator</li>
                     <li><span class="key">SPACE</span> : Attack (Sword)</li>
+                    <li><span class="key">Shift</span> + <span class="key">A</span> : Local Admin (Beka_ei)</li>
+                    <li><span class="key">Shift</span> + <span class="key">G</span> : Global Admin (Beka_ei)</li>
                     <li><span class="key">E</span> : Open Chest / Interact</li>
                     <li><span class="key">Q</span> : Open Inventory</li>
                     <li><span class="key">M</span> : Toggle Minimap</li>
                     <li><span class="key">O</span> : Dog Stats</li>
-                    <li><span class="key">C</span> : Toggle Chat</li>
                     <li><span class="key">1</span>-<span class="key">9</span> : Use Item</li>
                 </ul>
             </div>
@@ -198,7 +216,6 @@
                     <li><strong>👋 Button</strong> : Loot Chest</li>
                     <li><strong>INV Button</strong> : Inventory</li>
                     <li><strong>Eye Icon</strong> : Toggle Minimap</li>
-                    <li><strong>💬 Icon</strong> : Toggle Chat</li>
                 </ul>
             </div>
         </div>
@@ -213,9 +230,11 @@
     <script>
         const socket = io();
         window.onload = function () {
-            // Local Best
+            // Local Best & Coins
             const myBest = localStorage.getItem('feral_personalBest') || "0";
+            const coins = localStorage.getItem('feralCoins') || "0";
             document.getElementById('pbDisplay').innerText = `DAY ${myBest}`;
+            document.getElementById('coinDisplay').innerText = coins;
         };
         socket.on('connect', () => { socket.emit('getLeaderboard'); });
         socket.on('leaderboardData', (data) => {
