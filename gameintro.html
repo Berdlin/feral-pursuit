@@ -3,108 +3,135 @@
 
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>Feral Pursuit - Briefing</title>
     <style>
-        @import url('https://fonts.googleapis.com/css2?family=Vt323&display=swap');
+        @import url('https://fonts.googleapis.com/css2?family=Cinzel:wght@400;700&family=Lato:wght@300;400&display=swap');
 
         body {
             margin: 0;
+            padding: 0;
             background-color: #050505;
             color: #e0e0e0;
-            font-family: 'VT323', monospace;
-            font-size: 1.2em;
+            font-family: 'Lato', sans-serif;
             min-height: 100vh;
             display: flex;
             justify-content: center;
             align-items: center;
+            overflow-x: hidden;
+            overflow-y: auto;
+        }
+
+        .background-fx {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: radial-gradient(circle at center, #200 0%, #000 100%);
+            opacity: 0.5;
+            z-index: 0;
         }
 
         .container {
+            position: relative;
+            z-index: 10;
             max-width: 900px;
-            width: 95%;
+            width: 90%;
             text-align: center;
-            padding: 20px;
-            border: 2px solid #500;
+            padding: 30px;
+            margin: 20px;
+            border: 1px solid #500;
             background: rgba(0, 0, 0, 0.95);
-            box-shadow: 0 0 50px rgba(100, 0, 0, 0.3);
+            box-shadow: 0 0 40px rgba(255, 0, 0, 0.2);
+            border-radius: 4px;
         }
 
         h1 {
-            font-size: 4em;
+            font-family: 'Cinzel', serif;
             color: #ff4500;
-            margin: 0;
-            text-shadow: 4px 4px 0px #300;
+            font-size: 3em;
+            margin-bottom: 20px;
+            text-shadow: 0 0 10px red;
         }
 
-        .stat-grid {
+        h2 {
+            color: #00bfff;
+            border-bottom: 1px solid #333;
+            padding-bottom: 10px;
+            margin-top: 30px;
+            font-family: 'Cinzel';
+        }
+
+        .grid {
             display: grid;
-            grid-template-columns: 1fr 1fr 1fr;
-            gap: 10px;
-            margin: 20px 0;
+            grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+            gap: 20px;
+            text-align: left;
+            margin-bottom: 20px;
+        }
+
+        .box {
             background: #111;
+            padding: 15px;
+            border-left: 3px solid #ff4500;
+        }
+
+        .key {
+            background: #333;
+            padding: 2px 6px;
+            border-radius: 3px;
+            border: 1px solid #555;
+            font-family: monospace;
+            color: #fff;
+            font-weight: bold;
+        }
+
+        .record-box {
+            display: flex;
+            justify-content: space-around;
+            margin: 20px 0;
+            background: #080808;
             padding: 15px;
             border: 1px solid #333;
         }
 
+        .stat {
+            text-align: center;
+        }
+
         .val {
-            font-size: 2em;
+            font-size: 1.5em;
+            font-weight: bold;
             color: gold;
         }
 
-        .lbl {
+        .label {
+            font-size: 0.7em;
             color: #888;
-            font-size: 0.8em;
-        }
-
-        .shop-section {
-            border-top: 2px dashed #444;
-            margin-top: 20px;
-            padding-top: 20px;
-        }
-
-        .shop-item {
-            display: inline-block;
-            width: 40%;
-            background: #222;
-            margin: 10px;
-            padding: 10px;
-            border: 1px solid #444;
-            cursor: pointer;
-            transition: 0.3s;
-        }
-
-        .shop-item:hover {
-            border-color: gold;
-            background: #333;
-        }
-
-        .shop-item.owned {
-            border-color: #0f0;
-            opacity: 0.5;
-            cursor: default;
         }
 
         .btn {
             display: inline-block;
             padding: 15px 40px;
             margin: 10px;
-            background: #500;
+            background: #300;
             color: #fff;
             text-decoration: none;
-            font-size: 1.5em;
-            border: 2px solid #f00;
+            border: 1px solid #ff4500;
+            font-family: 'Cinzel';
+            transition: 0.3s;
             cursor: pointer;
         }
 
         .btn:hover {
-            background: #f00;
+            background: #ff4500;
             color: #000;
         }
 
         .btn-multi {
-            background: #003366;
             border-color: #00bfff;
+            background: #002233;
         }
 
         .btn-multi:hover {
@@ -114,79 +141,87 @@
 </head>
 
 <body>
-    <audio id="bgm" loop>
-        <source src="assets/scary_theme.mp3" type="audio/mpeg">
-    </audio>
-
+    <div class="background-fx"></div>
     <div class="container">
         <h1>FERAL PURSUIT</h1>
-        <div style="color:#aaa; margin-bottom: 20px;">OPERATOR: <span id="userDisplay"
-                style="color:white; font-weight:bold;">--</span></div>
 
-        <div class="stat-grid">
-            <div>
-                <div class="val" id="coinDisplay">0</div>
-                <div class="lbl">FERAL COINS</div>
+        <div class="record-box">
+            <div class="stat">
+                <div class="val" id="pbDisplay">--</div>
+                <div class="label">YOUR BEST SURVIVAL</div>
             </div>
-            <div>
-                <div class="val" id="pbDisplay">0</div>
-                <div class="lbl">BEST SURVIVAL</div>
+            <div class="stat">
+                <div class="val" id="wrDisplay">LOADING...</div>
+                <div class="label">WORLD RECORD</div>
             </div>
-            <div>
-                <div class="val" id="wrDisplay">--</div>
-                <div class="lbl">WORLD RECORD</div>
+            <div class="stat">
+                <div class="val" id="wrHolder">--</div>
+                <div class="label">HELD BY</div>
             </div>
         </div>
 
-        <div class="shop-section">
-            <h2 style="margin:0; color:gold;">SUPPLY DEPOT</h2>
-            <div class="shop-item" onclick="buyClass('starter', 5)" id="item-starter">
-                <div style="font-size:2em;">⚔️ STARTER</div>
-                <div style="color:#aaa;">Spawn with Sword (+2 DMG)</div>
-                <div style="color:gold;">COST: 5 COINS</div>
+        <h2>MISSION BRIEFING</h2>
+        <div class="grid">
+            <div class="box">
+                <h3 style="color:#ffaa00; margin-top:0;">PHASE 1: SCAVENGING</h3>
+                <p>You have <strong>25 Seconds</strong> before the sun sets. Search the map for 📦 Chests. They contain
+                    weapons, armor, or healing items. Be careful: some chests are trapped.</p>
             </div>
-            <div class="shop-item" onclick="buyClass('medic', 10)" id="item-medic">
-                <div style="font-size:2em;">💊 MEDIC</div>
-                <div style="color:#aaa;">Spawn with Health Elixir</div>
-                <div style="color:gold;">COST: 10 COINS</div>
+            <div class="box">
+                <h3 style="color:#ff0000; margin-top:0;">PHASE 2: THE HUNT</h3>
+                <p>When the timer hits zero, the <strong>Blood Moon</strong> rises. Wolves will spawn and hunt you. You
+                    must kill them to survive until the next day.</p>
+            </div>
+        </div>
+
+        <h2>OPERATOR CONTROLS</h2>
+        <div class="grid">
+            <div class="box">
+                <h3 style="margin-top:0;">🖥️ DESKTOP</h3>
+                <ul style="line-height: 1.8;">
+                    <li><span class="key">W</span><span class="key">A</span><span class="key">S</span><span
+                            class="key">D</span> : Move Operator</li>
+                    <li><span class="key">SPACE</span> : Attack (Sword)</li>
+                    <li><span class="key">E</span> : Open Chest / Interact</li>
+                    <li><span class="key">Q</span> : Open Inventory</li>
+                    <li><span class="key">M</span> : Toggle Minimap</li>
+                    <li><span class="key">O</span> : Dog Stats</li>
+                    <li><span class="key">C</span> : Toggle Chat</li>
+                    <li><span class="key">1</span>-<span class="key">9</span> : Use Item</li>
+                </ul>
+            </div>
+            <div class="box">
+                <h3 style="margin-top:0;">📱 MOBILE</h3>
+                <ul style="line-height: 1.8;">
+                    <li><strong>Joystick (Left)</strong> : Move</li>
+                    <li><strong>⚔️ Button</strong> : Attack</li>
+                    <li><strong>👋 Button</strong> : Loot Chest</li>
+                    <li><strong>INV Button</strong> : Inventory</li>
+                    <li><strong>Eye Icon</strong> : Toggle Minimap</li>
+                    <li><strong>💬 Icon</strong> : Toggle Chat</li>
+                </ul>
             </div>
         </div>
 
         <div style="margin-top: 30px;">
-            <a href="realgame.html" class="btn">SINGLE PLAYER</a>
+            <a href="gamestart.html" class="btn">SINGLE PLAYER</a>
             <a href="gamelobby.html" class="btn btn-multi">MULTIPLAYER LOBBY</a>
-            <br>
-            <a href="auth.html" style="color:#555; font-size:0.8em; margin-top:10px; display:inline-block;">LOGOUT</a>
         </div>
     </div>
 
     <script src="/socket.io/socket.io.js"></script>
     <script>
         const socket = io();
-        const user = localStorage.getItem('gameUsername');
-        if (!user) window.location.href = 'auth.html';
-
-        document.getElementById('userDisplay').innerText = user.toUpperCase();
-
-        // Music attempt
-        document.body.addEventListener('click', () => { document.getElementById('bgm').play().catch(e => { }); }, { once: true });
-
-        socket.on('connect', () => {
-            socket.emit('getUserData', user);
+        window.onload = function () {
+            // Local Best
+            const myBest = localStorage.getItem('feral_personalBest') || "0";
+            document.getElementById('pbDisplay').innerText = `DAY ${myBest}`;
+        };
+        socket.on('connect', () => { socket.emit('getLeaderboard'); });
+        socket.on('leaderboardData', (data) => {
+            document.getElementById('wrDisplay').innerText = `DAY ${data.days}`;
+            document.getElementById('wrHolder').innerText = data.holder.toUpperCase();
         });
-
-        socket.on('userData', (data) => {
-            document.getElementById('coinDisplay').innerText = data.coins;
-            document.getElementById('pbDisplay').innerText = `DAY ${data.highScore}`;
-            document.getElementById('wrDisplay').innerText = `DAY ${data.wr} (${data.wrHolder})`;
-
-            if (data.classes.includes('starter')) document.getElementById('item-starter').classList.add('owned');
-            if (data.classes.includes('medic')) document.getElementById('item-medic').classList.add('owned');
-        });
-
-        function buyClass(type, cost) {
-            socket.emit('buyItem', { username: user, item: type, cost: cost });
-        }
     </script>
 </body>
 

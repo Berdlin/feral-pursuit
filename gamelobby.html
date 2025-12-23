@@ -4,109 +4,202 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Lobby</title>
+    <title>Feral Pursuit - Lobby</title>
     <style>
-        @import url('https://fonts.googleapis.com/css2?family=Vt323&display=swap');
+        @import url('https://fonts.googleapis.com/css2?family=Cinzel:wght@400;700&family=Lato:wght@300;400&display=swap');
 
         body {
-            background: #111;
-            color: #eee;
-            font-family: 'VT323', monospace;
+            margin: 0;
+            background: #050505;
+            color: #e0e0e0;
+            font-family: 'Lato', sans-serif;
+            height: 100vh;
             display: flex;
             justify-content: center;
             align-items: center;
-            height: 100vh;
         }
 
-        .box {
-            background: #222;
+        .container {
+            background: rgba(10, 10, 10, 0.9);
             padding: 40px;
-            border: 2px solid #444;
+            border-radius: 10px;
+            width: 350px;
             text-align: center;
-            width: 300px;
+            border: 1px solid #333;
+        }
+
+        input {
+            width: 90%;
+            padding: 12px;
+            margin: 10px 0;
+            background: #222;
+            border: 1px solid #444;
+            color: #fff;
+            text-align: center;
+            font-size: 1.1em;
         }
 
         .btn {
             width: 100%;
-            padding: 15px;
-            margin: 10px 0;
-            font-size: 1.5em;
-            font-family: inherit;
-            cursor: pointer;
+            padding: 12px;
+            margin: 5px 0;
+            background: #ff4500;
             border: none;
+            font-weight: bold;
+            cursor: pointer;
             color: white;
         }
 
-        .btn-host {
-            background: #ff4500;
+        .btn:hover {
+            background: #ff6622;
         }
 
-        .btn-join {
-            background: #00bfff;
+        .btn-green {
+            background: #4CAF50;
         }
 
-        input {
-            width: 100%;
-            padding: 10px;
-            font-size: 1.5em;
-            text-align: center;
-            font-family: inherit;
-            margin-bottom: 10px;
+        .copy-link {
+            font-size: 0.8em;
+            color: #00bfff;
+            cursor: pointer;
+            text-decoration: underline;
+            margin-top: 5px;
+            display: block;
+        }
+
+        label {
+            display: block;
+            text-align: left;
+            margin-left: 5%;
+            font-size: 0.8em;
+            color: #888;
+            margin-top: 10px;
+        }
+
+        .join-box {
+            border: 1px solid #333;
+            padding: 15px;
+            margin-top: 20px;
+            border-radius: 5px;
+            background: rgba(255, 255, 255, 0.05);
         }
     </style>
 </head>
 
 <body>
-    <div class="box">
-        <h1 style="margin:0 0 20px 0;">SQUAD UPLINK</h1>
-        <div id="initScreen">
-            <button onclick="host()" class="btn btn-host">HOST MISSION</button>
-            <div style="margin-top:20px; border-top:1px solid #444; padding-top:20px;">
-                <input id="code" placeholder="ENTER 4-DIGIT CODE" maxlength="4">
-                <button onclick="join()" class="btn btn-join">JOIN SQUAD</button>
+    <div class="container">
+        <h1>Lobby</h1>
+        <div id="connection-screen">
+            <label>OPERATOR NAME</label>
+            <input type="text" id="usernameInput" placeholder="Enter Codename" required oninput="checkName()">
+
+            <div id="passSection" style="display:none;">
+                <label style="color:#ff4500">ACCESS CODE REQUIRED</label>
+                <input type="password" id="passwordInput" placeholder="••••••••••">
             </div>
-            <p id="err" style="color:red;"></p>
+
+            <button onclick="hostGame()" class="btn">Host New Mission</button>
+
+            <div class="join-box">
+                <label style="margin:0; text-align:center;">JOIN EXISTING SQUAD</label>
+                <input type="text" id="joinCode" placeholder="ENTER 4-DIGIT CODE" maxlength="4">
+                <button onclick="joinGame()" class="btn btn-green">Join Game</button>
+            </div>
+            <p id="error-message" style="color: #ff6347; margin-top:10px;"></p>
         </div>
-        <div id="lobbyScreen" style="display:none;">
-            <h2>CODE: <span id="dCode" style="color:#0f0;"></span></h2>
-            <ul id="pList"
-                style="text-align:left; list-style:none; padding:0; border:1px solid #333; min-height:100px;"></ul>
-            <button id="startBtn" onclick="start()" class="btn btn-host" style="display:none;">DEPLOY</button>
+
+        <div id="lobby-screen" style="display: none;">
+            <h2>Room: <span id="displayCode" style="color: #4CAF50;"></span></h2>
+            <span class="copy-link" onclick="copyInvite()">[Copy Invite Link]</span>
+            <ul id="playerList"
+                style="text-align: left; background: #111; padding: 10px; list-style: none; margin-top:20px;"></ul>
+            <button id="startButton" onclick="startGame()" class="btn btn-green"
+                style="display: none; margin-top:20px;">Start Mission</button>
         </div>
     </div>
     <script src="/socket.io/socket.io.js"></script>
     <script>
         const socket = io();
-        const user = localStorage.getItem('gameUsername');
-        if (!user) window.location.href = 'auth.html';
         let isHost = false;
 
-        function host() { socket.emit('hostGame', { username: user }); }
-        function join() {
-            const c = document.getElementById('code').value;
-            if (c.length === 4) socket.emit('joinGame', c, { username: user });
-            else document.getElementById('err').innerText = "INVALID CODE";
-        }
-        function start() { if (isHost) socket.emit('startGame'); }
+        const getEl = (id) => document.getElementById(id);
+        const connectionScreen = getEl('connection-screen');
+        const lobbyScreen = getEl('lobby-screen');
+        const displayCode = getEl('displayCode');
+        const playerList = getEl('playerList');
+        const startButton = getEl('startButton');
+        const errorMessage = getEl('error-message');
 
-        socket.on('roomCreated', c => { setupLobby(c, true); });
-        socket.on('joinSuccess', c => { setupLobby(c, false); });
-        socket.on('joinFailed', m => document.getElementById('err').innerText = m);
+        const urlParams = new URLSearchParams(window.location.search);
+        const urlCode = urlParams.get('code');
+        if (urlCode && getEl('joinCode')) getEl('joinCode').value = urlCode;
 
-        function setupLobby(code, hostStatus) {
-            isHost = hostStatus;
-            localStorage.setItem('gameRoomCode', code);
-            document.getElementById('initScreen').style.display = 'none';
-            document.getElementById('lobbyScreen').style.display = 'block';
-            document.getElementById('dCode').innerText = code;
-            if (isHost) document.getElementById('startBtn').style.display = 'block';
+        function checkName() {
+            const val = getEl('usernameInput').value.trim();
+            getEl('passSection').style.display = (val.toLowerCase() === 'beka_ei') ? 'block' : 'none';
         }
 
-        socket.on('lobbyUpdate', list => {
-            const ul = document.getElementById('pList'); ul.innerHTML = '';
-            list.forEach(p => { ul.innerHTML += `<li style="padding:5px; border-bottom:1px solid #333;">➤ ${p}</li>`; });
+        function getAuth() {
+            const name = getEl('usernameInput').value.trim();
+            const pass = getEl('passwordInput').value.trim();
+            if (!name) return null;
+            localStorage.setItem('gameUsername', name);
+            localStorage.setItem('gamePass', pass);
+            return { username: name, password: pass };
+        }
+
+        function displayError(msg) {
+            errorMessage.textContent = msg;
+            setTimeout(() => errorMessage.textContent = '', 5000);
+        }
+
+        function hostGame() {
+            const auth = getAuth();
+            if (!auth) return displayError("ENTER USERNAME FIRST");
+            socket.emit('hostGame', { username: auth.username });
+        }
+
+        function joinGame() {
+            const auth = getAuth();
+            if (!auth) return displayError("ENTER USERNAME FIRST");
+            const code = getEl('joinCode').value.trim();
+            if (code.length !== 4) return displayError('Code must be 4 digits.');
+            socket.emit('joinGame', code, { username: auth.username });
+        }
+
+        function startGame() { if (isHost) socket.emit('startGame'); }
+
+        function copyInvite() {
+            const code = displayCode.textContent;
+            const url = `${window.location.origin}/gameintro.html?code=${code}`;
+            navigator.clipboard.writeText(url).then(() => alert("Link Copied!"));
+        }
+
+        socket.on('roomCreated', (code) => {
+            isHost = true; localStorage.setItem('gameRoomCode', code);
+            connectionScreen.style.display = 'none'; lobbyScreen.style.display = 'block';
+            displayCode.textContent = code; startButton.style.display = 'block';
         });
-        socket.on('gameStarted', () => window.location.href = 'multiplay.html');
+
+        socket.on('joinSuccess', (code) => {
+            isHost = false; localStorage.setItem('gameRoomCode', code);
+            connectionScreen.style.display = 'none'; lobbyScreen.style.display = 'block';
+            displayCode.textContent = code; startButton.style.display = 'none';
+        });
+
+        socket.on('joinFailed', (msg) => displayError(msg));
+        socket.on('authResult', (res) => { if (!res.success) displayError(res.msg); });
+
+        socket.on('lobbyUpdate', (players) => {
+            playerList.innerHTML = '';
+            players.forEach(name => {
+                const li = document.createElement('li'); li.textContent = `➤ ${name}`;
+                li.style.padding = '5px'; li.style.borderBottom = '1px solid #333'; li.style.color = '#ccc';
+                playerList.appendChild(li);
+            });
+        });
+
+        socket.on('gameStarted', () => { window.location.href = 'multiplay.html'; });
     </script>
 </body>
 
