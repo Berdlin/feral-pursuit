@@ -6,7 +6,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>Feral Pursuit - Multiplayer</title>
     <style>
-        /* CORE GAME STYLES (MATCHING SINGLEPLAYER) */
+        /* CORE GAME STYLES */
         body {
             font-family: 'Segoe UI', sans-serif;
             background: #080808;
@@ -48,7 +48,6 @@
             flex-direction: column;
             align-items: center;
             justify-content: center;
-            transition: left 0.1s linear, top 0.1s linear;
         }
 
         .player-dot {
@@ -74,7 +73,6 @@
             border-radius: 4px;
         }
 
-        /* WOLF STYLES (Synced with Real Game) */
         .wolf-entity {
             font-size: 2.5em;
             width: 50px;
@@ -122,7 +120,73 @@
             transition: width 0.2s;
         }
 
-        /* HUD */
+        /* INVENTORY SIDEBAR */
+        .inventory-sidebar {
+            width: 280px;
+            background-color: #111;
+            border-right: 2px solid #333;
+            height: 100vh;
+            position: absolute;
+            left: 0;
+            top: 0;
+            transform: translateX(-100%);
+            transition: transform 0.3s ease-in-out;
+            z-index: 200;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .inventory-sidebar.visible {
+            transform: translateX(0);
+        }
+
+        .inv-header {
+            padding: 20px;
+            background-color: #1a1a1a;
+            text-align: center;
+            color: #ff4500;
+            font-size: 1.2em;
+            border-bottom: 1px solid #333;
+        }
+
+        .inv-list {
+            flex-grow: 1;
+            overflow-y: auto;
+            padding: 10px;
+            max-height: 90vh;
+        }
+
+        .inv-item {
+            background: #222;
+            margin-bottom: 8px;
+            padding: 10px;
+            border-radius: 4px;
+            border: 1px solid #333;
+            display: flex;
+            align-items: center;
+            cursor: pointer;
+        }
+
+        .inv-item:hover {
+            background: #333;
+            border-color: #ff4500;
+        }
+
+        .key-hint {
+            background: #ff4500;
+            color: #000;
+            font-weight: bold;
+            width: 20px;
+            height: 20px;
+            border-radius: 3px;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            margin-right: 10px;
+            font-size: 0.8em;
+        }
+
+        /* HUD & ALERTS */
         .hud-top {
             position: fixed;
             top: 20px;
@@ -155,7 +219,7 @@
             text-shadow: 0 0 10px black;
         }
 
-        /* ADMIN PANEL (Multiplayer Version) */
+        /* ADMIN PANEL */
         #adminPanel {
             position: absolute;
             top: 50%;
@@ -263,11 +327,31 @@
             align-items: center;
             font-size: 24px;
         }
+
+        #btnInvMob {
+            top: 20px;
+            left: 20px;
+            width: 60px;
+            height: 60px;
+            background: #333;
+            border: 1px solid white;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            font-size: 14px;
+            color: white;
+            border-radius: 8px;
+        }
     </style>
     <script src="https://unpkg.com/simple-peer@9.11.1/simplepeer.min.js"></script>
 </head>
 
 <body>
+
+    <div id="inventoryPanel" class="inventory-sidebar">
+        <div class="inv-header">INVENTORY [Q]</div>
+        <div class="inv-list" id="invList"></div>
+    </div>
 
     <div class="hud-top">
         <div class="hud-stat">DAY: <span id="dayDisplay">1</span></div>
@@ -306,6 +390,7 @@
         </div>
         <div id="btnAttack" class="mob-zone" onclick="emitAttack()">⚔️</div>
         <div id="btnLoot" class="mob-zone" onclick="emitLoot()">👋</div>
+        <div id="btnInvMob" class="mob-zone" onclick="toggleInventory()">BAG</div>
     </div>
 
     <div style="position:fixed; top:10px; left:10px; z-index:200;">
@@ -322,14 +407,18 @@
         const pass = localStorage.getItem('gamePass') || "";
         let isAdmin = false;
         let myId = null;
-        let gameState = { players: {}, wolves: [], chests: [] };
+
+        // GAME STATE
+        let gameState = { players: [], wolves: [], chests: [] }; // Players is now array
+        let inventory = [];
         let camera = { x: 0, y: 0 };
         const MAP_SIZE = 1500;
 
-        // Inputs
+        // INPUTS
         const keys = {};
         let joyData = { x: 0, y: 0, active: false };
 
+        // --- INIT ---
         socket.on('connect', () => {
             myId = socket.id;
             socket.emit('verifyIdentity', { username: user, password: pass });
@@ -352,22 +441,28 @@
             renderLoop();
         });
 
+        // --- RENDER & INTERPOLATION LOOP ---
         function renderLoop() {
             requestAnimationFrame(renderLoop);
 
-            // Inputs
+            // 1. Process Inputs (Client Prediction for MY player)
             let dx = 0, dy = 0;
             if (keys['w'] || keys['ArrowUp']) dy -= 1;
             if (keys['s'] || keys['ArrowDown']) dy += 1;
             if (keys['a'] || keys['ArrowLeft']) dx -= 1;
             if (keys['d'] || keys['ArrowRight']) dx += 1;
             if (joyData.active) { dx = joyData.x; dy = joyData.y; }
+
+            // Normalize & Send Input
             const len = Math.sqrt(dx * dx + dy * dy);
             if (len > 0) { dx /= len; dy /= len; }
             if (dx !== 0 || dy !== 0) socket.emit('playerInput', { dx: dx, dy: dy });
 
-            // Camera
-            const myPlayer = gameState.players[myId];
+            // 2. Interpolate Other Entities
+            interpolateEntities();
+
+            // 3. Update Camera based on MY (interpolated/predicted) position
+            const myPlayer = gameState.players.find(p => p.id === myId);
             if (myPlayer) {
                 const stageW = window.innerWidth;
                 const stageH = window.innerHeight;
@@ -379,13 +474,48 @@
                 document.getElementById('hpDisplay').innerText = Math.floor(myPlayer.hp);
             }
 
+            // 4. Render
             renderEntities();
+        }
+
+        // --- SMOOTHING LOGIC (INTERPOLATION) ---
+        function interpolateEntities() {
+            // Smoothly move entities towards their server target position
+            const LERP_mw = 0.15; // Movement weight (10-20% per frame)
+
+            // Players
+            gameState.players.forEach(p => {
+                if (p.id === myId) {
+                    // Client prediction logic could go here, but strictly following server + slight smoothing is safer for consistency
+                    // If we want total responsiveness, we ignore p.targetX for self, but here we smooth self too
+                    // to prevent jitter if server lags.
+                }
+                if (p.targetX !== undefined) {
+                    // If distance is huge (teleport/respawn), snap immediately
+                    if (Math.hypot(p.targetX - p.x, p.targetY - p.y) > 200) {
+                        p.x = p.targetX; p.y = p.targetY;
+                    } else {
+                        // Linear Interpolation
+                        p.x += (p.targetX - p.x) * LERP_mw;
+                        p.y += (p.targetY - p.y) * LERP_mw;
+                    }
+                }
+            });
+
+            // Wolves
+            gameState.wolves.forEach(w => {
+                if (w.targetX !== undefined) {
+                    w.x += (w.targetX - w.x) * LERP_mw;
+                    w.y += (w.targetY - w.y) * LERP_mw;
+                }
+            });
         }
 
         function renderEntities() {
             const layer = document.getElementById('entitiesLayer');
             layer.innerHTML = '';
 
+            // Chests (Static)
             gameState.chests.forEach((c, i) => {
                 if (!c.opened) {
                     const el = document.createElement('div'); el.className = 'icon chest'; el.innerText = '📦';
@@ -394,16 +524,16 @@
                 }
             });
 
+            // Wolves
             gameState.wolves.forEach(w => {
                 if (w.hp > 0) {
                     const el = document.createElement('div');
                     el.className = 'icon ' + (w.isWhite ? 'white-wolf-entity' : 'wolf-entity');
                     el.innerHTML = '🐺';
                     el.style.left = w.x + 'px'; el.style.top = w.y + 'px';
-                    const bar = document.createElement('div');
-                    bar.className = 'bar-container';
-                    const fill = document.createElement('div');
-                    fill.className = 'bar-fill';
+                    // HP Bar
+                    const bar = document.createElement('div'); bar.className = 'bar-container';
+                    const fill = document.createElement('div'); fill.className = 'bar-fill';
                     fill.style.width = (w.hp / w.maxHp * 100) + '%';
                     fill.style.background = w.isWhite ? 'white' : 'red';
                     bar.appendChild(fill); el.appendChild(bar);
@@ -411,8 +541,9 @@
                 }
             });
 
+            // Players
             let aliveCount = 0;
-            Object.values(gameState.players).forEach(p => {
+            gameState.players.forEach(p => {
                 if (p.alive) aliveCount++;
                 const isMe = p.id === myId;
                 const el = document.createElement('div');
@@ -429,32 +560,104 @@
             document.getElementById('aliveDisplay').innerText = aliveCount;
         }
 
-        socket.on('gameStateUpdate', (state) => {
-            gameState = state;
-            document.getElementById('dayDisplay').innerText = state.day;
-            document.getElementById('timeDisplay').innerText = state.timer > 0 ? state.timer : "HUNT";
+        // --- SOCKET DATA HANDLING ---
+        socket.on('gameStateUpdate', (serverState) => {
+            // Instead of replacing gameState immediately, we update TARGETS for interpolation
+
+            // 1. Update/Add Players
+            serverState.players.forEach(serverP => {
+                let localP = gameState.players.find(p => p.id === serverP.id);
+                if (!localP) {
+                    // New player found, add directly
+                    localP = { ...serverP, targetX: serverP.x, targetY: serverP.y };
+                    gameState.players.push(localP);
+                } else {
+                    // Update stats directly
+                    localP.hp = serverP.hp;
+                    localP.alive = serverP.alive;
+                    // Set TARGET position for interpolation loop
+                    localP.targetX = serverP.x;
+                    localP.targetY = serverP.y;
+                    // If this is the very first packet, snap position
+                    if (localP.x === undefined) { localP.x = serverP.x; localP.y = serverP.y; }
+                }
+            });
+            // Remove disconnected players
+            gameState.players = gameState.players.filter(p => serverState.players.find(sp => sp.id === p.id));
+
+            // 2. Update Wolves
+            // Simple approach: Replace list but keep old positions if ID matches to interpolate
+            const newWolves = serverState.wolves.map(serverW => {
+                const oldW = gameState.wolves.find(w => w.id === serverW.id);
+                return {
+                    ...serverW,
+                    x: oldW ? oldW.x : serverW.x, // Keep old visual pos
+                    y: oldW ? oldW.y : serverW.y,
+                    targetX: serverW.x, // Set target
+                    targetY: serverW.y
+                };
+            });
+            gameState.wolves = newWolves;
+
+            // 3. Misc
+            gameState.chests = serverState.chests;
+            document.getElementById('dayDisplay').innerText = serverState.day;
+            document.getElementById('timeDisplay').innerText = serverState.timer > 0 ? serverState.timer : "HUNT";
         });
+
         socket.on('alert', (data) => {
             const al = document.getElementById('topAlert');
             al.innerText = data.msg; al.style.color = data.color; al.style.opacity = 1;
             setTimeout(() => al.style.opacity = 0, 3000);
         });
-        socket.on('gameOver', (data) => {
-            alert(`GAME OVER\nReason: ${data.reason}\nSurvived: ${data.days} Days`);
-            window.location.href = 'gamelobby.html';
-        });
+
         socket.on('notification', (data) => {
             const al = document.getElementById('topAlert');
             al.innerText = data.msg; al.style.color = data.color; al.style.opacity = 1;
             setTimeout(() => al.style.opacity = 0, 2000);
         });
 
-        // Controls
+        socket.on('gameOver', (data) => {
+            alert(`GAME OVER\nReason: ${data.reason}\nSurvived: ${data.days} Days`);
+            window.location.href = 'gamelobby.html';
+        });
+
+        // --- INVENTORY LOGIC ---
+        socket.on('inventoryUpdate', (inv) => {
+            inventory = inv;
+            renderInventory();
+        });
+
+        function renderInventory() {
+            const list = document.getElementById('invList');
+            list.innerHTML = '';
+            inventory.forEach((item, i) => {
+                const div = document.createElement('div');
+                div.className = 'inv-item';
+                div.onclick = () => { socket.emit('useItem', i); };
+                div.innerHTML = `<span class="key-hint">${i + 1}</span> <div>${item.icon} ${item.name}</div>`;
+                list.appendChild(div);
+            });
+        }
+
+        function toggleInventory() {
+            const panel = document.getElementById('inventoryPanel');
+            panel.classList.toggle('visible');
+        }
+
+        // --- CONTROLS ---
         window.addEventListener('keydown', (e) => {
             keys[e.key] = true;
             if (e.key === ' ' || e.key === 'Enter') emitAttack();
             if (e.key.toLowerCase() === 'e') emitLoot();
-            // Admin Panel
+            if (e.key.toLowerCase() === 'q') toggleInventory();
+
+            // Number keys for inventory
+            if (e.key >= '1' && e.key <= '9') {
+                const idx = parseInt(e.key) - 1;
+                if (inventory[idx]) socket.emit('useItem', idx);
+            }
+
             if (e.shiftKey && e.key.toLowerCase() === 'a' && isAdmin) {
                 document.getElementById('adminPanel').style.display = 'block';
             }
@@ -464,7 +667,7 @@
         function emitAttack() { socket.emit('playerAttack'); }
         function emitLoot() { socket.emit('tryLoot'); }
 
-        // Admin Functions
+        // --- ADMIN ---
         function applyAdminStats() {
             const hp = parseInt(document.getElementById('admHp').value);
             const dmg = parseInt(document.getElementById('admDmg').value);
@@ -475,7 +678,7 @@
         function killAllWolves() { socket.emit('adminAction', { type: 'killWolves' }); }
         function spawnWhiteWolf() { socket.emit('adminAction', { type: 'spawnWhiteWolf' }); }
 
-        // Mobile
+        // --- MOBILE ---
         const isMobile = /Android|iPhone|iPad/i.test(navigator.userAgent);
         if (isMobile) {
             document.getElementById('mobileControls').style.display = 'block';
@@ -497,14 +700,13 @@
             }
         }
 
-        // Voice (Simplified)
+        // --- VOICE ---
         let localStream;
         async function joinVoiceChat() {
             try {
                 localStream = await navigator.mediaDevices.getUserMedia({ audio: true });
                 document.getElementById('btnVoice').style.display = 'none';
                 document.getElementById('voiceStatus').innerText = "VOICE ON";
-                // Signal to server (reuse joinGame as trigger for peers)
                 socket.emit('joinGame', localStorage.getItem('gameRoomCode'), { username: user });
             } catch (e) { alert("Mic Error"); }
         }

@@ -5,19 +5,41 @@ const http = require('http');
 const server = http.createServer(app);
 const { Server } = require("socket.io");
 const io = new Server(server, { cors: { origin: "*" } });
+const fs = require('fs'); // Native file system for persistence
 
 app.use(express.static(__dirname));
 
 app.get('/', (req, res) => { res.sendFile(__dirname + '/gameintro.html'); });
 
-// --- CONSTANTS (Synced with Real Game) ---
+// --- CONSTANTS ---
 const MAP_SIZE = 1500;
 const WOLF_SPEED = 5.0;
 const PLAYER_SPEED = 7;
+const DB_FILE = 'record.json';
+
+// --- PERSISTENCE (Simple JSON DB) ---
+let globalRecord = { days: 0, holder: "None" };
+
+function loadRecord() {
+    if (fs.existsSync(DB_FILE)) {
+        try {
+            const data = fs.readFileSync(DB_FILE, 'utf8');
+            globalRecord = JSON.parse(data);
+            console.log("Record loaded:", globalRecord);
+        } catch (e) { console.error("Error loading record:", e); }
+    }
+}
+
+function saveRecord() {
+    try {
+        fs.writeFileSync(DB_FILE, JSON.stringify(globalRecord));
+    } catch (e) { console.error("Error saving record:", e); }
+}
+
+loadRecord(); // Load on startup
 
 // --- STATE ---
 const rooms = {};
-let globalRecord = { days: 12, holder: "AlphaTester" }; // Mock DB for World Record
 
 // --- GAME LOOP (30 FPS) ---
 setInterval(() => {
@@ -48,7 +70,6 @@ function updateRoom(roomId) {
             let target = null;
             let minDist = 9999;
 
-            // Target closest living player
             for (const pid in room.players) {
                 const p = room.players[pid];
                 if (!p.alive) continue;
@@ -59,12 +80,9 @@ function updateRoom(roomId) {
             if (target) {
                 const angle = Math.atan2(target.y - wolf.y, target.x - wolf.x);
                 const speed = wolf.isWhite ? WOLF_SPEED * 0.8 : WOLF_SPEED;
-
-                // Move Wolf
                 wolf.x += Math.cos(angle) * speed;
                 wolf.y += Math.sin(angle) * speed;
 
-                // Collision/Attack
                 const attackRange = wolf.isWhite ? 80 : 40;
                 if (minDist < attackRange) {
                     const now = Date.now();
@@ -72,8 +90,8 @@ function updateRoom(roomId) {
                         wolf.nextAttack = now + 500;
                         if (!target.invulnerable) {
                             target.hp -= wolf.dmg;
-                            io.to(roomId).emit('playerHit', { id: target.id, hp: target.hp });
-
+                            io.to(roomId).emit('playerHit', { id: target.id, hp: target.hp }); // UI update only
+                            // Note: We send full state below, but immediate events help UI response
                             if (target.hp <= 0) {
                                 target.alive = false;
                                 io.to(roomId).emit('playerDied', { id: target.id, name: target.username });
@@ -85,14 +103,14 @@ function updateRoom(roomId) {
             }
         });
 
-        if (activeBoss) {
-            io.to(roomId).emit('bossUpdate', { active: true, hp: activeBoss.hp, maxHp: activeBoss.maxHp });
-        }
+        if (activeBoss) io.to(roomId).emit('bossUpdate', { active: true, hp: activeBoss.hp, maxHp: activeBoss.maxHp });
     }
 
-    // Send State
+    // Send State (Positions only, inventory is sent on change)
     io.to(roomId).emit('gameStateUpdate', {
-        players: room.players,
+        players: Object.values(room.players).map(p => ({
+            id: p.id, username: p.username, x: p.x, y: p.y, hp: p.hp, maxHp: p.maxHp, alive: p.alive
+        })),
         wolves: room.wolves,
         chests: room.chests,
         status: room.status,
@@ -103,6 +121,7 @@ function updateRoom(roomId) {
 
 function checkGameOver(roomId) {
     const room = rooms[roomId];
+    if (!room) return;
     const anyAlive = Object.values(room.players).some(p => p.alive);
     if (!anyAlive) {
         room.status = 'over';
@@ -112,12 +131,15 @@ function checkGameOver(roomId) {
 
 function checkVictory(roomId) {
     const room = rooms[roomId];
-    const allDead = room.wolves.every(w => w.hp <= 0);
-    if (allDead) {
+    if (room.wolves.every(w => w.hp <= 0)) {
         room.level++;
+        // Check Record
         if (room.level > globalRecord.days) {
             globalRecord = { days: room.level, holder: "Squad " + roomId };
+            saveRecord(); // PERSIST TO DISK
+            io.emit('newRecord', globalRecord); // Announce to everyone
         }
+
         room.status = 'collection';
         room.timerStart = Date.now();
         // Heal Survivors
@@ -135,34 +157,19 @@ function checkVictory(roomId) {
 // --- SOCKET EVENTS ---
 io.on('connection', (socket) => {
 
-    // 1. LEADERBOARD REQUEST
-    socket.on('getLeaderboard', () => {
-        socket.emit('leaderboardData', globalRecord);
-    });
+    socket.on('getLeaderboard', () => { socket.emit('leaderboardData', globalRecord); });
 
-    // 2. GLOBAL CHAT (Broadcast to ALL connected clients)
     socket.on('globalChat', (data) => {
-        io.emit('globalChatMsg', {
-            user: data.username || "Anon",
-            text: data.text,
-            color: data.isAdmin ? "#ff0000" : "#00bfff"
-        });
+        io.emit('globalChatMsg', { user: data.username || "Anon", text: data.text, color: data.isAdmin ? "#ff0000" : "#00bfff" });
     });
 
-    // 3. AUTH & IDENTITY
     socket.on('verifyIdentity', (data) => {
-        if (data.username?.toLowerCase() === "beka_ei" && data.password === "bereketisthebest") {
-            socket.username = "beka_ei";
-            socket.isAdmin = true;
-            socket.emit('authResult', { success: true, isAdmin: true });
-        } else {
-            socket.username = data.username || "Survivor";
-            socket.isAdmin = false;
-            socket.emit('authResult', { success: true, isAdmin: false });
-        }
+        const isAdmin = (data.username?.toLowerCase() === "beka_ei" && data.password === "bereketisthebest");
+        socket.username = data.username || "Survivor";
+        socket.isAdmin = isAdmin;
+        socket.emit('authResult', { success: true, isAdmin: isAdmin });
     });
 
-    // 4. GAME LOGIC
     socket.on('hostGame', (data) => {
         const code = Math.floor(1000 + Math.random() * 9000).toString();
         socket.join(code);
@@ -179,6 +186,8 @@ io.on('connection', (socket) => {
             socket.emit('joinSuccess', code);
             if (rooms[code].status !== 'lobby') {
                 socket.emit('gameStarted');
+                // Send current inventory to reconnecting player
+                socket.emit('inventoryUpdate', rooms[code].players[socket.id].inventory);
             } else {
                 io.to(code).emit('lobbyUpdate', getPlayerNames(rooms[code]));
             }
@@ -188,12 +197,12 @@ io.on('connection', (socket) => {
     });
 
     socket.on('startGame', () => {
-        const roomCode = getRoomCode(socket);
-        if (roomCode && rooms[roomCode]) {
-            rooms[roomCode].status = 'collection';
-            rooms[roomCode].timerStart = Date.now();
-            spawnEntities(rooms[roomCode], 1);
-            io.to(roomCode).emit('gameStarted');
+        const room = getRoom(socket);
+        if (room) {
+            room.status = 'collection';
+            room.timerStart = Date.now();
+            spawnEntities(room, 1);
+            io.to(room.id).emit('gameStarted');
         }
     });
 
@@ -202,7 +211,6 @@ io.on('connection', (socket) => {
         if (!room) return;
         const p = room.players[socket.id];
         if (p && p.alive) {
-            // Apply speed multiplier from Admin if set
             const spd = p.speed || PLAYER_SPEED;
             if (data.dx || data.dy) {
                 p.x = Math.max(20, Math.min(MAP_SIZE - 20, p.x + data.dx * spd));
@@ -225,47 +233,59 @@ io.on('connection', (socket) => {
         });
     });
 
+    // --- INVENTORY SYSTEM ---
     socket.on('tryLoot', () => {
         const room = getRoom(socket);
         if (!room) return;
         const p = room.players[socket.id];
         if (!p || !p.alive) return;
+
         room.chests.forEach((c, i) => {
             if (!c.opened && Math.hypot(p.x - c.x, p.y - c.y) < 80) {
                 c.opened = true;
-                const rand = Math.random();
-                let msg = "";
-                if (rand < 0.3) { p.dmg += 5; msg = "Sword Upgrade (+5 DMG)"; }
-                else if (rand < 0.6) { p.hp = Math.min(p.maxHp, p.hp + 50); msg = "Health Potion (+50 HP)"; }
-                else { p.maxHp += 20; p.hp += 20; msg = "Armor Found (+20 Max HP)"; }
+                const item = generateItem(room.level);
+                p.inventory.push(item);
+
                 io.to(room.id).emit('lootOpened', { id: i });
-                socket.emit('notification', { msg: msg, color: "gold" });
+                socket.emit('notification', { msg: `Found: ${item.name}`, color: "gold" });
+                socket.emit('inventoryUpdate', p.inventory); // Sync Client
             }
         });
     });
 
-    // --- MULTIPLAYER ADMIN ACTIONS ---
+    socket.on('useItem', (index) => {
+        const room = getRoom(socket);
+        if (!room) return;
+        const p = room.players[socket.id];
+        if (!p || !p.alive || !p.inventory[index]) return;
+
+        const item = p.inventory[index];
+
+        // Apply Effect
+        if (item.type === 'hp') p.hp = Math.min(p.maxHp, p.hp + item.val);
+        else if (item.type === 'sword') p.dmg += item.val;
+        else if (item.type === 'shield') { p.maxHp += item.val; p.hp += item.val; }
+        else if (item.type === 'curse_dmg') p.dmg = Math.max(1, p.dmg + item.val);
+        else if (item.type === 'hp_half') p.hp = Math.floor(p.hp * 0.5);
+
+        // Remove Item and Sync
+        p.inventory.splice(index, 1);
+        socket.emit('inventoryUpdate', p.inventory);
+        socket.emit('notification', { msg: `Used ${item.name}`, color: "#00ff00" });
+    });
+
+    // Admin
     socket.on('adminAction', (data) => {
         if (!socket.isAdmin) return;
         const room = getRoom(socket);
         if (!room) return;
-
-        // Handle Admin Commands
         if (data.type === 'setStats') {
             const p = room.players[socket.id];
-            if (p) {
-                p.hp = data.hp; p.dmg = data.dmg; p.speed = data.speed;
-                // Force room level if needed
-                if (data.level) room.level = data.level;
-            }
+            if (p) { p.hp = data.hp; p.dmg = data.dmg; p.speed = data.speed; if (data.level) room.level = data.level; }
         } else if (data.type === 'killWolves') {
-            room.wolves.forEach(w => w.hp = 0);
-            checkVictory(room.id);
+            room.wolves.forEach(w => w.hp = 0); checkVictory(room.id);
         } else if (data.type === 'spawnWhiteWolf') {
-            room.wolves.push({
-                id: Date.now(), x: Math.random() * MAP_SIZE, y: Math.random() * MAP_SIZE,
-                hp: 10000, maxHp: 10000, dmg: 100, isWhite: true, nextAttack: 0
-            });
+            room.wolves.push({ id: Date.now(), x: Math.random() * MAP_SIZE, y: Math.random() * MAP_SIZE, hp: 10000, maxHp: 10000, dmg: 100, isWhite: true, nextAttack: 0 });
             io.to(room.id).emit('alert', { msg: "ADMIN SPAWNED LEGENDARY WOLF", color: "white" });
         }
     });
@@ -280,13 +300,19 @@ io.on('connection', (socket) => {
     });
 });
 
+// --- HELPER FUNCTIONS ---
 function getRoomCode(socket) { return Array.from(socket.rooms).filter(r => r !== socket.id)[0]; }
 function getRoom(socket) { const c = getRoomCode(socket); return c ? rooms[c] : null; }
 function getPlayerNames(room) { return Object.values(room.players).map(p => p.username); }
+
 function createRoom(id) { return { id: id, players: {}, wolves: [], chests: [], status: 'lobby', timerStart: 0, level: 1 }; }
 function createPlayer(id, name) {
-    return { id: id, username: name, x: 750, y: 750, hp: 100, maxHp: 100, dmg: 10, speed: PLAYER_SPEED, alive: true, invulnerable: false };
+    return {
+        id: id, username: name, x: 750, y: 750, hp: 100, maxHp: 100, dmg: 10, speed: PLAYER_SPEED,
+        alive: true, invulnerable: false, inventory: []
+    };
 }
+
 function spawnEntities(room, level) {
     room.wolves = []; room.chests = [];
     const count = Math.min(level + 1, 40);
@@ -295,6 +321,18 @@ function spawnEntities(room, level) {
     }
     for (let i = 0; i < 15; i++) {
         room.chests.push({ x: Math.random() * (MAP_SIZE - 100) + 50, y: Math.random() * (MAP_SIZE - 100) + 50, opened: false });
+    }
+}
+
+function generateItem(level) {
+    const rand = Math.random() * 100;
+    const badChance = Math.max(10, 50 - (level * 2));
+    if (rand < badChance) {
+        // Cursed items
+        return [{ name: "Cursed Blade", type: "curse_dmg", val: -5, icon: "💀" }, { name: "Blood Debt", type: "hp_half", val: 0, icon: "🩸" }][Math.floor(Math.random() * 2)];
+    } else {
+        // Good items
+        return [{ name: "Steel Sword", type: "sword", val: 12, icon: "⚔️" }, { name: "Health Kit", type: "hp", val: 40, icon: "🍷" }, { name: "Plate Armor", type: "shield", val: 60, icon: "🛡️" }][Math.floor(Math.random() * 3)];
     }
 }
 
