@@ -19,18 +19,15 @@
     document.body.appendChild(overlayDiv);
 
     // 2. Initialize Socket Connection
-    // We check if 'io' exists (socket.io.js must be loaded in the main HTML)
     let socket;
     if (typeof io !== 'undefined') {
-        socket = io(); // Connect using existing or new socket
+        socket = io();
     } else {
         console.warn("GlobalChat: Socket.io not found on this page.");
         return;
     }
 
     const user = localStorage.getItem('gameUsername') || "Guest";
-    const pass = localStorage.getItem('gamePass') || "";
-    // Client-side 'admin' check for visual style, server verifies continuously
     const isAdmin = (user.toLowerCase() === 'beka_ei');
 
     // 3. Event Listeners
@@ -52,7 +49,6 @@
     function sendMessage() {
         const text = inp.value.trim();
         if (!text) return;
-        // Verify admin status via logic before sending tag preference
         socket.emit('globalChat', { username: user, text: text, isAdmin: isAdmin });
         inp.value = '';
     }
