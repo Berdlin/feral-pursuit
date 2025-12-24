@@ -4,22 +4,20 @@ const app = express();
 const http = require('http');
 const server = http.createServer(app);
 const { Server } = require("socket.io");
-const io = new Server(server, {
-    cors: { origin: "*" }
-});
+const io = new Server(server, { cors: { origin: "*" } });
 
 app.use(express.static(__dirname));
 
-app.get('/', (req, res) => {
-    res.sendFile(__dirname + '/gameintro.html');
-});
+app.get('/', (req, res) => { res.sendFile(__dirname + '/gameintro.html'); });
 
-// --- CONSTANTS ---
+// --- CONSTANTS (Synced with Real Game) ---
 const MAP_SIZE = 1500;
 const WOLF_SPEED = 5.0;
 const PLAYER_SPEED = 7;
 
+// --- STATE ---
 const rooms = {};
+let globalRecord = { days: 12, holder: "AlphaTester" }; // Mock DB for World Record
 
 // --- GAME LOOP (30 FPS) ---
 setInterval(() => {
@@ -87,13 +85,12 @@ function updateRoom(roomId) {
             }
         });
 
-        // Boss Bar Update
         if (activeBoss) {
             io.to(roomId).emit('bossUpdate', { active: true, hp: activeBoss.hp, maxHp: activeBoss.maxHp });
         }
     }
 
-    // Send State to Clients
+    // Send State
     io.to(roomId).emit('gameStateUpdate', {
         players: room.players,
         wolves: room.wolves,
@@ -106,7 +103,6 @@ function updateRoom(roomId) {
 
 function checkGameOver(roomId) {
     const room = rooms[roomId];
-    if (!room) return;
     const anyAlive = Object.values(room.players).some(p => p.alive);
     if (!anyAlive) {
         room.status = 'over';
@@ -119,6 +115,9 @@ function checkVictory(roomId) {
     const allDead = room.wolves.every(w => w.hp <= 0);
     if (allDead) {
         room.level++;
+        if (room.level > globalRecord.days) {
+            globalRecord = { days: room.level, holder: "Squad " + roomId };
+        }
         room.status = 'collection';
         room.timerStart = Date.now();
         // Heal Survivors
@@ -136,9 +135,13 @@ function checkVictory(roomId) {
 // --- SOCKET EVENTS ---
 io.on('connection', (socket) => {
 
-    // 1. GLOBAL CHAT LISTENER
+    // 1. LEADERBOARD REQUEST
+    socket.on('getLeaderboard', () => {
+        socket.emit('leaderboardData', globalRecord);
+    });
+
+    // 2. GLOBAL CHAT (Broadcast to ALL connected clients)
     socket.on('globalChat', (data) => {
-        // Broadcast to ALL sockets connected to server (Global)
         io.emit('globalChatMsg', {
             user: data.username || "Anon",
             text: data.text,
@@ -146,7 +149,7 @@ io.on('connection', (socket) => {
         });
     });
 
-    // 2. AUTH
+    // 3. AUTH & IDENTITY
     socket.on('verifyIdentity', (data) => {
         if (data.username?.toLowerCase() === "beka_ei" && data.password === "bereketisthebest") {
             socket.username = "beka_ei";
@@ -154,20 +157,12 @@ io.on('connection', (socket) => {
             socket.emit('authResult', { success: true, isAdmin: true });
         } else {
             socket.username = data.username || "Survivor";
+            socket.isAdmin = false;
             socket.emit('authResult', { success: true, isAdmin: false });
         }
     });
 
-    // 3. VOICE SIGNALING (WebRTC Relay)
-    socket.on('voiceSignal', (data) => {
-        // data = { to: socketId, signal: signalData, from: socketId }
-        io.to(data.to).emit('voiceSignalReceived', {
-            signal: data.signal,
-            from: socket.id
-        });
-    });
-
-    // 4. GAME LOBBY LOGIC
+    // 4. GAME LOGIC
     socket.on('hostGame', (data) => {
         const code = Math.floor(1000 + Math.random() * 9000).toString();
         socket.join(code);
@@ -182,16 +177,11 @@ io.on('connection', (socket) => {
             socket.join(code);
             rooms[code].players[socket.id] = createPlayer(socket.id, data.username);
             socket.emit('joinSuccess', code);
-
-            // If game already running, sync them immediately
             if (rooms[code].status !== 'lobby') {
                 socket.emit('gameStarted');
             } else {
                 io.to(code).emit('lobbyUpdate', getPlayerNames(rooms[code]));
             }
-
-            // Notify existing players of new peer (for Voice)
-            socket.to(code).emit('peerJoined', { signalId: socket.id });
         } else {
             socket.emit('joinFailed', 'Invalid Room');
         }
@@ -207,17 +197,16 @@ io.on('connection', (socket) => {
         }
     });
 
-    // 5. PLAYER INPUTS
     socket.on('playerInput', (data) => {
         const room = getRoom(socket);
         if (!room) return;
         const p = room.players[socket.id];
         if (p && p.alive) {
-            // Apply movement (Server Authority)
-            // data = { dx, dy } normalized
+            // Apply speed multiplier from Admin if set
+            const spd = p.speed || PLAYER_SPEED;
             if (data.dx || data.dy) {
-                p.x = Math.max(20, Math.min(MAP_SIZE - 20, p.x + data.dx * p.speed));
-                p.y = Math.max(20, Math.min(MAP_SIZE - 20, p.y + data.dy * p.speed));
+                p.x = Math.max(20, Math.min(MAP_SIZE - 20, p.x + data.dx * spd));
+                p.y = Math.max(20, Math.min(MAP_SIZE - 20, p.y + data.dy * spd));
             }
         }
     });
@@ -227,8 +216,6 @@ io.on('connection', (socket) => {
         if (!room) return;
         const p = room.players[socket.id];
         if (!p || !p.alive) return;
-
-        // Hit Detection
         room.wolves.forEach(w => {
             const range = w.isWhite ? 120 : 100;
             if (w.hp > 0 && Math.hypot(w.x - p.x, w.y - p.y) < range) {
@@ -243,21 +230,44 @@ io.on('connection', (socket) => {
         if (!room) return;
         const p = room.players[socket.id];
         if (!p || !p.alive) return;
-
         room.chests.forEach((c, i) => {
             if (!c.opened && Math.hypot(p.x - c.x, p.y - c.y) < 80) {
                 c.opened = true;
-                // Simple reward logic for multiplayer (Upgrade dmg or heal)
                 const rand = Math.random();
                 let msg = "";
                 if (rand < 0.3) { p.dmg += 5; msg = "Sword Upgrade (+5 DMG)"; }
                 else if (rand < 0.6) { p.hp = Math.min(p.maxHp, p.hp + 50); msg = "Health Potion (+50 HP)"; }
                 else { p.maxHp += 20; p.hp += 20; msg = "Armor Found (+20 Max HP)"; }
-
                 io.to(room.id).emit('lootOpened', { id: i });
                 socket.emit('notification', { msg: msg, color: "gold" });
             }
         });
+    });
+
+    // --- MULTIPLAYER ADMIN ACTIONS ---
+    socket.on('adminAction', (data) => {
+        if (!socket.isAdmin) return;
+        const room = getRoom(socket);
+        if (!room) return;
+
+        // Handle Admin Commands
+        if (data.type === 'setStats') {
+            const p = room.players[socket.id];
+            if (p) {
+                p.hp = data.hp; p.dmg = data.dmg; p.speed = data.speed;
+                // Force room level if needed
+                if (data.level) room.level = data.level;
+            }
+        } else if (data.type === 'killWolves') {
+            room.wolves.forEach(w => w.hp = 0);
+            checkVictory(room.id);
+        } else if (data.type === 'spawnWhiteWolf') {
+            room.wolves.push({
+                id: Date.now(), x: Math.random() * MAP_SIZE, y: Math.random() * MAP_SIZE,
+                hp: 10000, maxHp: 10000, dmg: 100, isWhite: true, nextAttack: 0
+            });
+            io.to(room.id).emit('alert', { msg: "ADMIN SPAWNED LEGENDARY WOLF", color: "white" });
+        }
     });
 
     socket.on('disconnect', () => {
@@ -265,56 +275,26 @@ io.on('connection', (socket) => {
         if (roomCode && rooms[roomCode]) {
             delete rooms[roomCode].players[socket.id];
             io.to(roomCode).emit('lobbyUpdate', getPlayerNames(rooms[roomCode]));
-            // Notify for voice disconnect
-            io.to(roomCode).emit('peerLeft', { signalId: socket.id });
-
-            // Clean up empty rooms
-            if (Object.keys(rooms[roomCode].players).length === 0) {
-                delete rooms[roomCode];
-            }
+            if (Object.keys(rooms[roomCode].players).length === 0) delete rooms[roomCode];
         }
     });
 });
 
-// --- HELPER FUNCTIONS ---
 function getRoomCode(socket) { return Array.from(socket.rooms).filter(r => r !== socket.id)[0]; }
 function getRoom(socket) { const c = getRoomCode(socket); return c ? rooms[c] : null; }
 function getPlayerNames(room) { return Object.values(room.players).map(p => p.username); }
 function createRoom(id) { return { id: id, players: {}, wolves: [], chests: [], status: 'lobby', timerStart: 0, level: 1 }; }
-
 function createPlayer(id, name) {
-    return {
-        id: id, username: name,
-        x: 750, y: 750, hp: 100, maxHp: 100, dmg: 10, speed: PLAYER_SPEED,
-        alive: true, invulnerable: false
-    };
+    return { id: id, username: name, x: 750, y: 750, hp: 100, maxHp: 100, dmg: 10, speed: PLAYER_SPEED, alive: true, invulnerable: false };
 }
-
 function spawnEntities(room, level) {
-    room.wolves = [];
-    room.chests = [];
+    room.wolves = []; room.chests = [];
     const count = Math.min(level + 1, 40);
-
-    // Spawn Wolves
     for (let i = 0; i < count; i++) {
-        room.wolves.push({
-            id: i,
-            x: Math.random() > 0.5 ? -100 : MAP_SIZE + 100,
-            y: Math.random() * MAP_SIZE,
-            hp: (level * 80) + 50,
-            maxHp: (level * 80) + 50,
-            dmg: (level * 5) + 5,
-            nextAttack: 0, isWhite: false
-        });
+        room.wolves.push({ id: i, x: Math.random() > 0.5 ? -100 : MAP_SIZE + 100, y: Math.random() * MAP_SIZE, hp: (level * 80) + 50, maxHp: (level * 80) + 50, dmg: (level * 5) + 5, nextAttack: 0, isWhite: false });
     }
-
-    // Spawn Chests
     for (let i = 0; i < 15; i++) {
-        room.chests.push({
-            x: Math.random() * (MAP_SIZE - 100) + 50,
-            y: Math.random() * (MAP_SIZE - 100) + 50,
-            opened: false
-        });
+        room.chests.push({ x: Math.random() * (MAP_SIZE - 100) + 50, y: Math.random() * (MAP_SIZE - 100) + 50, opened: false });
     }
 }
 

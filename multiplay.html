@@ -74,27 +74,32 @@
             border-radius: 4px;
         }
 
-        .wolf {
+        /* WOLF STYLES (Synced with Real Game) */
+        .wolf-entity {
+            font-size: 2.5em;
             width: 50px;
             height: 50px;
             background: #200;
-            border: 2px solid red;
             border-radius: 50%;
+            border: 2px solid #f00;
             display: flex;
             justify-content: center;
             align-items: center;
-            font-size: 24px;
-            box-shadow: 0 0 15px red;
+            box-shadow: 0 0 15px #f00;
         }
 
-        .wolf-white {
+        .white-wolf-entity {
+            font-size: 4em;
             width: 80px;
             height: 80px;
-            background: white;
+            background: #fff;
+            border-radius: 50%;
             border: 3px solid #ccc;
             color: black;
-            font-size: 40px;
-            box-shadow: 0 0 25px white;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            box-shadow: 0 0 25px #fff;
         }
 
         .chest {
@@ -107,6 +112,8 @@
             height: 4px;
             background: #555;
             margin-bottom: 2px;
+            position: absolute;
+            top: -10px;
         }
 
         .bar-fill {
@@ -148,100 +155,48 @@
             text-shadow: 0 0 10px black;
         }
 
-        /* VOICE CHAT UI */
-        #voicePanel {
+        /* ADMIN PANEL (Multiplayer Version) */
+        #adminPanel {
             position: absolute;
-            top: 10px;
-            left: 10px;
-            background: rgba(0, 0, 0, 0.8);
-            padding: 10px;
-            border: 1px solid #00bfff;
-            z-index: 200;
-            border-radius: 5px;
-        }
-
-        .voice-btn {
-            background: #333;
-            color: white;
-            border: 1px solid #555;
-            padding: 5px 10px;
-            cursor: pointer;
-            margin-right: 5px;
-        }
-
-        .voice-btn.active {
-            background: #00bfff;
-            color: black;
-        }
-
-        .voice-status {
-            font-size: 10px;
-            color: #aaa;
-            margin-top: 5px;
-        }
-
-        /* GLOBAL CHATBOX */
-        #globalChat {
-            position: fixed;
-            bottom: 20px;
-            right: 20px;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
             width: 320px;
-            height: 250px;
-            background: rgba(0, 0, 0, 0.9);
-            border: 1px solid #ff4500;
-            z-index: 999;
-            display: flex;
-            flex-direction: column;
-            border-radius: 5px;
-            box-shadow: 0 0 15px rgba(255, 69, 0, 0.2);
+            background: rgba(0, 0, 0, 0.95);
+            border: 2px solid #00ff00;
+            padding: 20px;
+            z-index: 300;
             display: none;
+            color: #00ff00;
+            font-family: monospace;
+            box-shadow: 0 0 20px #00ff00;
         }
 
-        #chatHeader {
-            padding: 8px;
-            background: #220000;
-            color: #ff4500;
-            font-weight: bold;
-            border-bottom: 1px solid #440000;
+        .admin-row {
+            margin: 10px 0;
             display: flex;
             justify-content: space-between;
+            align-items: center;
         }
 
-        #chatMessages {
-            flex-grow: 1;
-            padding: 10px;
-            overflow-y: auto;
-            font-size: 14px;
-            font-family: monospace;
-        }
-
-        #chatInputContainer {
+        .admin-input {
+            width: 60px;
+            background: #222;
+            border: 1px solid currentColor;
+            color: #fff;
             padding: 5px;
-            border-top: 1px solid #333;
-            display: flex;
+            text-align: center;
         }
 
-        #chatInput {
-            flex-grow: 1;
-            background: #111;
-            border: none;
-            color: white;
-            padding: 5px;
-            outline: none;
-        }
-
-        #chatSend {
-            background: #ff4500;
-            border: none;
-            color: white;
-            font-weight: bold;
+        .admin-btn {
+            width: 100%;
+            background: #003300;
+            border: 1px solid #00ff00;
+            color: #fff;
+            padding: 8px;
             cursor: pointer;
-            padding: 0 10px;
-        }
-
-        .msg-line {
-            margin-bottom: 4px;
-            word-wrap: break-word;
+            margin-top: 10px;
+            font-weight: bold;
         }
 
         /* MOBILE CONTROLS */
@@ -308,21 +263,6 @@
             align-items: center;
             font-size: 24px;
         }
-
-        #btnChatMob {
-            top: 20px;
-            right: 20px;
-            width: 40px;
-            height: 40px;
-            background: #333;
-            pointer-events: auto;
-            position: absolute;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            border: 1px solid white;
-            border-radius: 4px;
-        }
     </style>
     <script src="https://unpkg.com/simple-peer@9.11.1/simplepeer.min.js"></script>
 </head>
@@ -337,23 +277,21 @@
     </div>
     <div id="topAlert"></div>
 
-    <div id="voicePanel">
-        <div style="margin-bottom:5px; color:#00bfff; font-weight:bold;">SQUAD COMMS</div>
-        <button class="voice-btn" id="btnJoinVoice" onclick="joinVoiceChat()">JOIN VOICE</button>
-        <button class="voice-btn" id="btnMute" style="display:none;" onclick="toggleMute()">MUTE</button>
-        <div class="voice-status" id="voiceStatus">Disconnected</div>
-    </div>
-
-    <div id="globalChat">
-        <div id="chatHeader">
-            <span>GLOBAL COMM LINK</span>
-            <span style="font-size:10px; cursor:pointer;" onclick="toggleChat()">[X]</span>
+    <div id="adminPanel">
+        <h2>MULTIPLAYER ADMIN</h2>
+        <div class="admin-row"><label>Set HP:</label><input type="number" id="admHp" class="admin-input" value="100">
         </div>
-        <div id="chatMessages"></div>
-        <div id="chatInputContainer">
-            <input type="text" id="chatInput" placeholder="Press Enter to send...">
-            <button id="chatSend" onclick="sendChat()">></button>
+        <div class="admin-row"><label>Set DMG:</label><input type="number" id="admDmg" class="admin-input" value="10">
         </div>
+        <div class="admin-row"><label>Speed:</label><input type="number" id="admSpeed" class="admin-input" value="7">
+        </div>
+        <div class="admin-row"><label>Level:</label><input type="number" id="admLevel" class="admin-input" value="1">
+        </div>
+        <button class="admin-btn" onclick="applyAdminStats()">APPLY STATS</button>
+        <button class="admin-btn" onclick="spawnWhiteWolf()">SPAWN WHITE WOLF</button>
+        <button class="admin-btn" style="background:#500; border-color:red;" onclick="killAllWolves()">KILL ALL
+            WOLVES</button>
+        <button class="admin-btn" onclick="document.getElementById('adminPanel').style.display='none'">CLOSE</button>
     </div>
 
     <div class="game-stage">
@@ -368,14 +306,18 @@
         </div>
         <div id="btnAttack" class="mob-zone" onclick="emitAttack()">⚔️</div>
         <div id="btnLoot" class="mob-zone" onclick="emitLoot()">👋</div>
-        <div id="btnChatMob" onclick="toggleChat()">💬</div>
+    </div>
+
+    <div style="position:fixed; top:10px; left:10px; z-index:200;">
+        <button id="btnVoice" onclick="joinVoiceChat()"
+            style="background:#00bfff; border:none; padding:5px; font-weight:bold;">Enable Voice</button>
+        <div id="voiceStatus" style="color:#0f0; font-size:10px;"></div>
     </div>
 
     <script src="/socket.io/socket.io.js"></script>
+    <script src="chat_overlay.js"></script>
     <script>
         const socket = io();
-
-        // --- CONFIG & STATE ---
         const user = localStorage.getItem('gameUsername') || "Guest";
         const pass = localStorage.getItem('gamePass') || "";
         let isAdmin = false;
@@ -388,7 +330,6 @@
         const keys = {};
         let joyData = { x: 0, y: 0, active: false };
 
-        // --- INIT ---
         socket.on('connect', () => {
             myId = socket.id;
             socket.emit('verifyIdentity', { username: user, password: pass });
@@ -397,9 +338,10 @@
         socket.on('authResult', (res) => {
             isAdmin = res.isAdmin;
             if (isAdmin) {
-                const msg = document.createElement('div');
-                msg.style.color = '#0f0'; msg.innerText = "ADMIN ACCESS GRANTED";
-                document.getElementById('chatMessages').appendChild(msg);
+                const al = document.getElementById('topAlert');
+                al.innerText = "ADMIN ACCESS GRANTED (SHIFT+A)";
+                al.style.color = "#0f0"; al.style.opacity = 1;
+                setTimeout(() => al.style.opacity = 0, 3000);
             }
         });
 
@@ -410,86 +352,65 @@
             renderLoop();
         });
 
-        // --- GAME LOOP & RENDERING ---
         function renderLoop() {
             requestAnimationFrame(renderLoop);
 
-            // 1. Process Inputs & Send to Server
+            // Inputs
             let dx = 0, dy = 0;
             if (keys['w'] || keys['ArrowUp']) dy -= 1;
             if (keys['s'] || keys['ArrowDown']) dy += 1;
             if (keys['a'] || keys['ArrowLeft']) dx -= 1;
             if (keys['d'] || keys['ArrowRight']) dx += 1;
-
             if (joyData.active) { dx = joyData.x; dy = joyData.y; }
-
-            // Normalize
             const len = Math.sqrt(dx * dx + dy * dy);
             if (len > 0) { dx /= len; dy /= len; }
+            if (dx !== 0 || dy !== 0) socket.emit('playerInput', { dx: dx, dy: dy });
 
-            if (dx !== 0 || dy !== 0) {
-                socket.emit('playerInput', { dx: dx, dy: dy });
-            }
-
-            // 2. Camera Follow Logic
+            // Camera
             const myPlayer = gameState.players[myId];
             if (myPlayer) {
                 const stageW = window.innerWidth;
                 const stageH = window.innerHeight;
                 camera.x = (stageW / 2) - myPlayer.x;
                 camera.y = (stageH / 2) - myPlayer.y;
-
-                // Clamp Camera
                 camera.x = Math.min(0, Math.max(camera.x, stageW - MAP_SIZE));
                 camera.y = Math.min(0, Math.max(camera.y, stageH - MAP_SIZE));
-
                 document.getElementById('mapViewport').style.transform = `translate(${camera.x}px, ${camera.y}px)`;
-
-                // Update HUD
                 document.getElementById('hpDisplay').innerText = Math.floor(myPlayer.hp);
             }
 
-            // 3. Render Entities
             renderEntities();
         }
 
         function renderEntities() {
             const layer = document.getElementById('entitiesLayer');
-            layer.innerHTML = ''; // Inefficient but simple for now. 
-            // *Optimization note: In a prod game, update existing DOM nodes instead of rebuilding.*
+            layer.innerHTML = '';
 
-            // Chests
             gameState.chests.forEach((c, i) => {
                 if (!c.opened) {
-                    const el = document.createElement('div');
-                    el.className = 'icon chest';
-                    el.innerText = '📦';
+                    const el = document.createElement('div'); el.className = 'icon chest'; el.innerText = '📦';
                     el.style.left = c.x + 'px'; el.style.top = c.y + 'px';
                     layer.appendChild(el);
                 }
             });
 
-            // Wolves
             gameState.wolves.forEach(w => {
                 if (w.hp > 0) {
                     const el = document.createElement('div');
-                    el.className = 'icon ' + (w.isWhite ? 'wolf-white' : 'wolf');
-                    el.innerHTML = w.isWhite ? '🐺' : '🐺';
+                    el.className = 'icon ' + (w.isWhite ? 'white-wolf-entity' : 'wolf-entity');
+                    el.innerHTML = '🐺';
                     el.style.left = w.x + 'px'; el.style.top = w.y + 'px';
-
-                    // HP Bar
                     const bar = document.createElement('div');
-                    bar.style.position = 'absolute'; bar.style.top = '-10px'; bar.style.width = '100%'; bar.style.height = '4px'; bar.style.background = 'red';
+                    bar.className = 'bar-container';
                     const fill = document.createElement('div');
-                    fill.style.width = (w.hp / w.maxHp * 100) + '%'; fill.style.height = '100%'; fill.style.background = 'lime';
-                    bar.appendChild(fill);
-                    el.appendChild(bar);
-
+                    fill.className = 'bar-fill';
+                    fill.style.width = (w.hp / w.maxHp * 100) + '%';
+                    fill.style.background = w.isWhite ? 'white' : 'red';
+                    bar.appendChild(fill); el.appendChild(bar);
                     layer.appendChild(el);
                 }
             });
 
-            // Players
             let aliveCount = 0;
             Object.values(gameState.players).forEach(p => {
                 if (p.alive) aliveCount++;
@@ -500,50 +421,42 @@
                 el.style.backgroundColor = isMe ? '#ff4500' : '#00bfff';
                 el.style.opacity = p.alive ? 1 : 0.3;
                 el.innerText = '🏃';
-
                 const name = document.createElement('div');
-                name.className = 'player-name';
-                name.innerText = p.username;
+                name.className = 'player-name'; name.innerText = p.username;
                 el.appendChild(name);
-
                 layer.appendChild(el);
             });
             document.getElementById('aliveDisplay').innerText = aliveCount;
         }
 
-        // --- SOCKET DATA LISTENERS ---
         socket.on('gameStateUpdate', (state) => {
             gameState = state;
             document.getElementById('dayDisplay').innerText = state.day;
             document.getElementById('timeDisplay').innerText = state.timer > 0 ? state.timer : "HUNT";
         });
-
         socket.on('alert', (data) => {
             const al = document.getElementById('topAlert');
-            al.innerText = data.msg;
-            al.style.color = data.color;
-            al.style.opacity = 1;
+            al.innerText = data.msg; al.style.color = data.color; al.style.opacity = 1;
             setTimeout(() => al.style.opacity = 0, 3000);
         });
-
         socket.on('gameOver', (data) => {
             alert(`GAME OVER\nReason: ${data.reason}\nSurvived: ${data.days} Days`);
             window.location.href = 'gamelobby.html';
         });
+        socket.on('notification', (data) => {
+            const al = document.getElementById('topAlert');
+            al.innerText = data.msg; al.style.color = data.color; al.style.opacity = 1;
+            setTimeout(() => al.style.opacity = 0, 2000);
+        });
 
-        // --- CONTROLS ---
+        // Controls
         window.addEventListener('keydown', (e) => {
             keys[e.key] = true;
-            if (e.key === ' ' || e.key === 'Enter') {
-                if (document.getElementById('globalChat').style.display === 'flex') return;
-                emitAttack();
-            }
+            if (e.key === ' ' || e.key === 'Enter') emitAttack();
             if (e.key.toLowerCase() === 'e') emitLoot();
-
-            // CHAT TOGGLE: SHIFT + C
-            if (e.shiftKey && e.key.toLowerCase() === 'c') {
-                e.preventDefault();
-                toggleChat();
+            // Admin Panel
+            if (e.shiftKey && e.key.toLowerCase() === 'a' && isAdmin) {
+                document.getElementById('adminPanel').style.display = 'block';
             }
         });
         window.addEventListener('keyup', (e) => keys[e.key] = false);
@@ -551,20 +464,26 @@
         function emitAttack() { socket.emit('playerAttack'); }
         function emitLoot() { socket.emit('tryLoot'); }
 
-        // Mobile Logic
+        // Admin Functions
+        function applyAdminStats() {
+            const hp = parseInt(document.getElementById('admHp').value);
+            const dmg = parseInt(document.getElementById('admDmg').value);
+            const speed = parseInt(document.getElementById('admSpeed').value);
+            const level = parseInt(document.getElementById('admLevel').value);
+            socket.emit('adminAction', { type: 'setStats', hp, dmg, speed, level });
+        }
+        function killAllWolves() { socket.emit('adminAction', { type: 'killWolves' }); }
+        function spawnWhiteWolf() { socket.emit('adminAction', { type: 'spawnWhiteWolf' }); }
+
+        // Mobile
         const isMobile = /Android|iPhone|iPad/i.test(navigator.userAgent);
         if (isMobile) {
             document.getElementById('mobileControls').style.display = 'block';
             const joy = document.getElementById('joystick');
             const knob = document.getElementById('joyKnob');
-
             joy.addEventListener('touchstart', (e) => { joyData.active = true; handleJoy(e); }, { passive: false });
             joy.addEventListener('touchmove', (e) => { e.preventDefault(); handleJoy(e); }, { passive: false });
-            joy.addEventListener('touchend', () => {
-                joyData.active = false; joyData.x = 0; joyData.y = 0;
-                knob.style.transform = `translate(-50%, -50%)`;
-            });
-
+            joy.addEventListener('touchend', () => { joyData.active = false; joyData.x = 0; joyData.y = 0; knob.style.transform = `translate(-50%, -50%)`; });
             function handleJoy(e) {
                 const rect = joy.getBoundingClientRect();
                 const touch = e.touches[0];
@@ -578,111 +497,17 @@
             }
         }
 
-        // --- GLOBAL CHAT SYSTEM ---
-        function toggleChat() {
-            const chat = document.getElementById('globalChat');
-            const isVisible = chat.style.display === 'flex';
-            chat.style.display = isVisible ? 'none' : 'flex';
-            if (!isVisible) document.getElementById('chatInput').focus();
-        }
-
-        function sendChat() {
-            const inp = document.getElementById('chatInput');
-            const text = inp.value.trim();
-            if (!text) return;
-            socket.emit('globalChat', { username: user, text: text, isAdmin: isAdmin });
-            inp.value = '';
-        }
-
-        // Listen for incoming global messages
-        socket.on('globalChatMsg', (msg) => {
-            const box = document.getElementById('chatMessages');
-            const el = document.createElement('div');
-            el.className = 'msg-line';
-            el.innerHTML = `<span style="color:${msg.color}; font-weight:bold;">[${msg.user}]</span>: ${msg.text}`;
-            box.appendChild(el);
-            box.scrollTop = box.scrollHeight;
-        });
-
-        // Hit Enter in chat input
-        document.getElementById('chatInput').addEventListener('keydown', (e) => {
-            if (e.key === 'Enter') sendChat();
-        });
-
-        // --- VOICE CHAT (WEBRTC MESH) ---
-        let localStream = null;
-        let peers = {}; // socketId -> SimplePeer instance
-        let isMuted = false;
-
+        // Voice (Simplified)
+        let localStream;
         async function joinVoiceChat() {
             try {
-                localStream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
-                document.getElementById('btnJoinVoice').style.display = 'none';
-                document.getElementById('btnMute').style.display = 'inline-block';
-                document.getElementById('voiceStatus').innerText = "Voice Active - Waiting for peers...";
-                document.getElementById('voiceStatus').style.color = "#0f0";
-
-                // Signal server we are ready
-                socket.emit('joinGame', localStorage.getItem('gameRoomCode') || '0000', { username: user });
-                // The server will trigger 'peerJoined' for others
-            } catch (err) {
-                alert("Microphone access denied or not found.");
-                console.error(err);
-            }
+                localStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+                document.getElementById('btnVoice').style.display = 'none';
+                document.getElementById('voiceStatus').innerText = "VOICE ON";
+                // Signal to server (reuse joinGame as trigger for peers)
+                socket.emit('joinGame', localStorage.getItem('gameRoomCode'), { username: user });
+            } catch (e) { alert("Mic Error"); }
         }
-
-        function toggleMute() {
-            if (!localStream) return;
-            isMuted = !isMuted;
-            localStream.getAudioTracks()[0].enabled = !isMuted;
-            const btn = document.getElementById('btnMute');
-            btn.innerText = isMuted ? "UNMUTE" : "MUTE";
-            btn.style.background = isMuted ? "red" : "#333";
-        }
-
-        // WebRTC Signaling Logic
-        socket.on('peerJoined', (data) => {
-            if (!localStream) return;
-            const peerId = data.signalId;
-            createPeer(peerId, true); // We are initiator
-        });
-
-        socket.on('voiceSignalReceived', (data) => {
-            if (!localStream) return;
-            const peerId = data.from;
-            if (!peers[peerId]) createPeer(peerId, false);
-            peers[peerId].signal(data.signal);
-        });
-
-        socket.on('peerLeft', (data) => {
-            if (peers[data.signalId]) {
-                peers[data.signalId].destroy();
-                delete peers[data.signalId];
-            }
-        });
-
-        function createPeer(peerId, initiator) {
-            const peer = new SimplePeer({
-                initiator: initiator,
-                trickle: false,
-                stream: localStream
-            });
-
-            peer.on('signal', (signal) => {
-                socket.emit('voiceSignal', { to: peerId, signal: signal });
-            });
-
-            peer.on('stream', (stream) => {
-                const audio = document.createElement('audio');
-                audio.srcObject = stream;
-                audio.play();
-                document.body.appendChild(audio); // Append invisible audio element
-            });
-
-            peers[peerId] = peer;
-            document.getElementById('voiceStatus').innerText = `Connected to ${Object.keys(peers).length} peers`;
-        }
-
     </script>
 </body>
 
