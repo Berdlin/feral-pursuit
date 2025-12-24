@@ -74,11 +74,9 @@ function updateRoom(roomId) {
                 const p = room.players[pid];
                 if (!p.alive) continue;
 
-                // Check Player
                 const distP = Math.hypot(p.x - wolf.x, p.y - wolf.y);
                 if (distP < minDist) { minDist = distP; target = p; }
 
-                // Check Dogs
                 if (p.companions) {
                     p.companions.forEach(dog => {
                         const distD = Math.hypot(dog.x - wolf.x, dog.y - wolf.y);
@@ -89,24 +87,21 @@ function updateRoom(roomId) {
 
             if (target) {
                 const angle = Math.atan2(target.y - wolf.y, target.x - wolf.x);
-                // Boss is slower but scarier
                 const speed = wolf.isWhite ? WOLF_SPEED * 0.8 : WOLF_SPEED;
 
                 wolf.x += Math.cos(angle) * speed;
                 wolf.y += Math.sin(angle) * speed;
 
-                // Attack Logic
                 const attackRange = wolf.isWhite ? 80 : 40;
                 if (minDist < attackRange) {
                     const now = Date.now();
                     if (now > (wolf.nextAttack || 0)) {
                         wolf.nextAttack = now + 500;
 
-                        // Deal Damage
-                        if (target.username) { // It's a player
+                        if (target.username) { // Is Player
                             if (!target.invulnerable) {
                                 target.hp -= wolf.dmg;
-                                io.to(roomId).emit('playerHit', { id: target.id }); // Trigger visual flash
+                                io.to(roomId).emit('playerHit', { id: target.id });
                                 if (target.hp <= 0) {
                                     target.hp = 0;
                                     target.alive = false;
@@ -115,10 +110,9 @@ function updateRoom(roomId) {
                                     checkGameOver(roomId);
                                 }
                             }
-                        } else { // It's a dog
+                        } else { // Is Dog
                             target.hp -= wolf.dmg;
                             if (target.hp <= 0) {
-                                // Remove dead dog
                                 for (const pid in room.players) {
                                     room.players[pid].companions = room.players[pid].companions.filter(d => d !== target);
                                 }
@@ -129,7 +123,7 @@ function updateRoom(roomId) {
             }
         });
 
-        // Broadcast Boss Health if active
+        // Broadcast Boss Health
         if (activeBoss) {
             io.to(roomId).emit('bossUpdate', { active: true, hp: activeBoss.hp, maxHp: activeBoss.maxHp });
         } else {
@@ -181,7 +175,6 @@ function checkGameOver(roomId) {
 io.on('connection', (socket) => {
     socket.username = "Guest";
 
-    // 1. Identity Verification
     socket.on('verifyIdentity', (data) => {
         if (data.username && data.username.toLowerCase() === "beka_ei") {
             if (data.password === "bereketisthebest") {
@@ -197,18 +190,17 @@ io.on('connection', (socket) => {
         }
     });
 
-    // 2. Global Admin Broadcast (Fixed)
+    // --- GLOBAL ADMIN (Server Wide) ---
     socket.on('globalAdminAction', (data) => {
         if (!socket.isAdmin) return;
 
         if (data.action === 'broadcast') {
-            // Sends to everyone connected to the server
+            // io.emit sends to EVERYONE, including the sender and other rooms
             io.emit('chatMessage', { user: "SERVER [ADMIN]", text: data.msg, color: "magenta" });
             io.emit('alert', { msg: data.msg, color: "magenta" });
         }
         else if (data.action === 'spawnWolf') {
-            io.emit('globalSpawnWolf', { hp: 10000, dmg: 100 }); // For single players
-            // For multiplayer rooms
+            io.emit('alert', { msg: "GLOBAL BOSS EVENT TRIGGERED!", color: "white" });
             for (const rid in rooms) {
                 const room = rooms[rid];
                 if (room.status !== 'over') {
@@ -220,10 +212,11 @@ io.on('connection', (socket) => {
             for (const rid in rooms) {
                 rooms[rid].wolves.forEach(w => w.hp = 0);
             }
+            io.emit('alert', { msg: "ADMIN CLEARED ALL ENTITIES", color: "green" });
         }
     });
 
-    // 3. Game Hosting & Joining
+    // --- HOSTING / JOINING ---
     socket.on('hostGame', (data) => {
         const code = Math.floor(1000 + Math.random() * 9000).toString();
         socket.join(code);
@@ -259,18 +252,19 @@ io.on('connection', (socket) => {
         }
     });
 
-    // 4. Player Movement
+    // --- MOVEMENT & ACTION ---
     socket.on('playerMove', (data) => {
         const room = getRoom(socket);
         if (!room) return;
         const p = room.players[socket.id];
         if (p && p.alive) {
-            p.x = Math.max(20, Math.min(MAP_SIZE - 20, p.x + data.dx * p.speed));
-            p.y = Math.max(20, Math.min(MAP_SIZE - 20, p.y + data.dy * p.speed));
+            // Speed factor
+            let currentSpeed = p.speed;
+            p.x = Math.max(20, Math.min(MAP_SIZE - 20, p.x + data.dx * currentSpeed));
+            p.y = Math.max(20, Math.min(MAP_SIZE - 20, p.y + data.dy * currentSpeed));
         }
     });
 
-    // 5. Attacks & Looting (Server Authority)
     socket.on('playerAttack', () => {
         const room = getRoom(socket);
         if (!room) return;
@@ -279,11 +273,10 @@ io.on('connection', (socket) => {
 
         // Check distance to wolves
         room.wolves.forEach(w => {
-            if (w.hp > 0 && Math.hypot(w.x - p.x, w.y - p.y) < 100) {
+            const rng = w.isWhite ? 120 : 100;
+            if (w.hp > 0 && Math.hypot(w.x - p.x, w.y - p.y) < rng) {
                 w.hp -= p.dmg;
-                if (w.hp <= 0) {
-                    checkVictory(room.id);
-                }
+                if (w.hp <= 0) checkVictory(room.id);
             }
         });
     });
@@ -297,7 +290,6 @@ io.on('connection', (socket) => {
         room.chests.forEach((c, i) => {
             if (!c.opened && Math.hypot(p.x - c.x, p.y - c.y) < 80) {
                 c.opened = true;
-                // Apply reward directly to player state
                 applyReward(p, c.reward);
                 io.to(room.id).emit('lootOpened', { id: i, by: p.username });
                 socket.emit('notification', { msg: `Found: ${c.reward.name}`, color: "gold" });
@@ -305,7 +297,7 @@ io.on('connection', (socket) => {
         });
     });
 
-    // 6. Chat System
+    // --- CHAT ---
     socket.on('sendChat', (msg) => {
         const roomCode = getRoomCode(socket);
         if (roomCode) {
@@ -313,7 +305,7 @@ io.on('connection', (socket) => {
         }
     });
 
-    // 7. Voice Call (WebRTC Signaling)
+    // --- VOICE (Signaling) ---
     socket.on('voice-signal', (payload) => {
         io.to(payload.target).emit('voice-signal', {
             signal: payload.signal,
@@ -325,16 +317,14 @@ io.on('connection', (socket) => {
         const roomCode = getRoomCode(socket);
         const room = rooms[roomCode];
         if (room) {
-            // Tell other players in this room to prepare for a call
             const otherUsers = Object.keys(room.players).filter(id => id !== socket.id);
             socket.emit('all-users', otherUsers);
         }
     });
 
-    // 8. New OP Admin Panel (Shift + I)
+    // --- SHIFT+I ADMIN POWER ---
     socket.on('adminPowerAction', (data) => {
-        // Simple security: check if this socket is verified admin OR just allow for gameplay demo
-        // For security, strict check:
+        // You can uncomment this line to restrict to real admins only
         // if (!socket.isAdmin) return; 
 
         const room = getRoom(socket);
@@ -342,17 +332,18 @@ io.on('connection', (socket) => {
         const p = room.players[socket.id];
 
         if (data.type === 'giveOP') {
-            p.dmg = 500;
-            p.hp = 5000;
-            p.maxHp = 5000;
+            p.dmg = 999;
+            p.hp = 9999;
+            p.maxHp = 9999;
+            p.speed = 15; // Faster speed
             socket.emit('alert', { msg: "GOD MODE ACTIVATED", color: "#00ff00" });
         }
         else if (data.type === 'spawnWolfLocal') {
-            // Spawns a wolf just in this room
             const id = Date.now();
             room.wolves.push({
-                id: id, x: p.x + 50, y: p.y, hp: 100, maxHp: 100, dmg: 10
+                id: id, x: p.x + 100, y: p.y, hp: 100, maxHp: 100, dmg: 10, nextAttack: 0, isWhite: false
             });
+            socket.emit('notification', { msg: "Wolf Spawned", color: "red" });
         }
     });
 
@@ -360,8 +351,7 @@ io.on('connection', (socket) => {
         const roomCode = getRoomCode(socket);
         if (roomCode && rooms[roomCode]) {
             delete rooms[roomCode].players[socket.id];
-            io.to(roomCode).emit('user-disconnected', socket.id); // For voice chat cleanup
-
+            io.to(roomCode).emit('user-disconnected', socket.id);
             setTimeout(() => {
                 if (rooms[roomCode] && Object.keys(rooms[roomCode].players).length === 0) {
                     delete rooms[roomCode];
@@ -371,7 +361,6 @@ io.on('connection', (socket) => {
     });
 });
 
-// --- HELPER FUNCTIONS ---
 function getRoomCode(socket) { return Array.from(socket.rooms).filter(r => r !== socket.id)[0]; }
 function getRoom(socket) { const c = getRoomCode(socket); return c ? rooms[c] : null; }
 function getPlayerNames(room) { return Object.values(room.players).map(p => p.username); }
@@ -401,7 +390,7 @@ function spawnEntities(room, level) {
         });
     }
     room.chests = [];
-    for (let i = 0; i < 15; i++) { // More chests for multiplayer
+    for (let i = 0; i < 15; i++) {
         room.chests.push({
             x: Math.random() * (MAP_SIZE - 100) + 50,
             y: Math.random() * (MAP_SIZE - 100) + 50,

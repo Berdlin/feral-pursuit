@@ -177,6 +177,7 @@
             display: flex;
             flex-direction: column;
             z-index: 200;
+            pointer-events: auto;
         }
 
         #chatMessages {
@@ -217,6 +218,7 @@
             z-index: 200;
             display: flex;
             gap: 10px;
+            pointer-events: auto;
         }
 
         .voice-btn {
@@ -297,6 +299,7 @@
             z-index: 160;
             opacity: 0;
             transition: opacity 0.5s;
+            pointer-events: none;
         }
 
         #inventoryPanel {
@@ -326,6 +329,27 @@
             border-radius: 4px;
             color: #fff;
         }
+
+        #minimap-container {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            width: 150px;
+            height: 150px;
+            background: rgba(0, 0, 0, 0.9);
+            border: 2px solid #555;
+            z-index: 180;
+            display: block;
+            pointer-events: none;
+        }
+
+        .mm-dot {
+            position: absolute;
+            width: 4px;
+            height: 4px;
+            border-radius: 50%;
+            transform: translate(-50%, -50%);
+        }
     </style>
 </head>
 
@@ -348,9 +372,11 @@
         </div>
 
         <div id="inventoryPanel">
-            <h2 style="color:#ff4500; text-align:center;">INVENTORY</h2>
+            <h2 style="color:#ff4500; text-align:center;">INVENTORY [Q]</h2>
             <div id="invList"></div>
         </div>
+
+        <div id="minimap-container"></div>
 
         <div id="chatContainer">
             <div id="chatMessages"></div>
@@ -373,7 +399,8 @@
         </div>
 
         <div id="globalAdminPanel" class="admin-panel">
-            <h3>GLOBAL ADMIN</h3>
+            <h3>GLOBAL ADMIN (Shift+G)</h3>
+            <p style="font-size:0.8em; color:#d080ff;">Broadcasts to ALL servers.</p>
             <input type="text" id="globalMsg" class="admin-input" placeholder="Broadcast Message">
             <button class="admin-btn" style="background:#a020f0; color:white;"
                 onclick="globalBroadcast()">BROADCAST</button>
@@ -386,8 +413,8 @@
         </div>
 
         <div id="powerPanel" class="admin-panel">
-            <h3>OPERATOR POWER (Shift+I)</h3>
-            <p>Grant yourself special permissions.</p>
+            <h3>POWER PANEL (Shift+I)</h3>
+            <p style="font-size:0.8em; color:#0f0;">Local cheat menu.</p>
             <button class="admin-btn" style="background:#003300; color:#0f0; border:1px solid #0f0;"
                 onclick="sendPowerAction('giveOP')">ACTIVATE GOD MODE</button>
             <button class="admin-btn" style="background:#333; color:#fff;"
@@ -406,12 +433,12 @@
         let myPlayer = null;
         let isAdmin = false;
 
-        // Inputs
+        // Input tracking
         const keys = {};
 
-        // Audio
+        // Audio / WebRTC
         let localStream = null;
-        const peers = {}; // Connection per player
+        const peers = {};
 
         function init() {
             const u = localStorage.getItem('gameUsername') || "Guest";
@@ -428,7 +455,7 @@
                 else {
                     const roomCode = localStorage.getItem('gameRoomCode');
                     socket.emit('joinGame', roomCode, { username: u });
-                    initVoice(); // Ask for mic permission immediately
+                    initVoice();
                     requestAnimationFrame(gameLoop);
                 }
             });
@@ -438,10 +465,11 @@
         }
 
         function setupSocketListeners() {
-            // Game State
+            // Game State Sync
             socket.on('gameStateUpdate', (state) => {
                 renderGame(state);
                 updateHUD(state);
+                updateMinimap(state);
                 myPlayer = state.players[myId];
             });
 
@@ -455,10 +483,10 @@
                 box.scrollTop = box.scrollHeight;
             });
 
-            // Alerts
+            // Visual FX
             socket.on('alert', (data) => showAlert(data.msg, data.color));
 
-            // Boss Bar
+            // Boss Bar Logic
             socket.on('bossUpdate', (data) => {
                 const hud = document.getElementById('bossHud');
                 if (data.active) {
@@ -470,7 +498,6 @@
                 }
             });
 
-            // Player Death/Victory
             socket.on('gameOver', (data) => {
                 alert(`GAME OVER\nReason: ${data.reason}\nDays Survived: ${data.days}`);
                 window.location.href = 'gamelobby.html';
@@ -483,7 +510,6 @@
                 }
             });
 
-            // Notification
             socket.on('notification', (data) => {
                 const div = document.createElement('div');
                 div.innerText = data.msg;
@@ -495,7 +521,7 @@
                 setTimeout(() => div.remove(), 2000);
             });
 
-            // --- WEBRTC SIGNALS ---
+            // --- WebRTC Handling ---
             socket.on('all-users', users => {
                 users.forEach(userId => createPeer(userId, socket.id, localStream));
             });
@@ -516,17 +542,17 @@
             });
         }
 
-        // --- GAME LOOP & RENDER ---
+        // --- GAME LOOP ---
         function gameLoop() {
             if (myPlayer && myPlayer.alive) {
                 let dx = 0, dy = 0;
+                // Standard WASD + Arrows
                 if (keys['w'] || keys['ArrowUp']) dy = -1;
                 if (keys['s'] || keys['ArrowDown']) dy = 1;
                 if (keys['a'] || keys['ArrowLeft']) dx = -1;
                 if (keys['d'] || keys['ArrowRight']) dx = 1;
 
                 if (dx !== 0 || dy !== 0) {
-                    // Normalize diagonal
                     const len = Math.sqrt(dx * dx + dy * dy);
                     socket.emit('playerMove', { dx: dx / len, dy: dy / len });
                 }
@@ -539,7 +565,7 @@
             const entityLayer = document.getElementById('entitiesLayer');
             const itemLayer = document.getElementById('itemsLayer');
 
-            // Center Camera
+            // Center Camera on Player
             if (myPlayer) {
                 const cx = (window.innerWidth / 2) - myPlayer.x;
                 const cy = (window.innerHeight / 2) - myPlayer.y;
@@ -549,7 +575,6 @@
             entityLayer.innerHTML = '';
             itemLayer.innerHTML = '';
 
-            // Draw Chests
             state.chests.forEach(c => {
                 if (!c.opened) {
                     const el = document.createElement('div');
@@ -560,7 +585,6 @@
                 }
             });
 
-            // Draw Players
             Object.values(state.players).forEach(p => {
                 if (!p.alive) return;
                 const el = document.createElement('div');
@@ -570,7 +594,6 @@
                 el.innerHTML = `<div class="name-tag">${p.username}</div>🏃`;
                 entityLayer.appendChild(el);
 
-                // Draw Companions
                 if (p.companions) {
                     p.companions.forEach(dog => {
                         const d = document.createElement('div');
@@ -582,13 +605,11 @@
                 }
             });
 
-            // Draw Wolves
             state.wolves.forEach(w => {
                 if (w.hp > 0) {
                     const el = document.createElement('div');
                     el.className = w.isWhite ? 'entity white-wolf-entity' : 'entity wolf-entity';
                     el.style.left = w.x + 'px'; el.style.top = w.y + 'px';
-                    // Simple health bar
                     const hpPct = (w.hp / w.maxHp) * 100;
                     el.innerHTML = `<div style="position:absolute; top:-10px; width:30px; height:4px; background:red;"><div style="width:${hpPct}%; background:#0f0; height:100%;"></div></div>`;
                     entityLayer.appendChild(el);
@@ -600,8 +621,6 @@
             const me = state.players[myId];
             if (me) {
                 document.getElementById('hpDisplay').innerText = Math.ceil(me.hp) + "/" + me.maxHp;
-
-                // Inventory
                 const invDiv = document.getElementById('invList');
                 invDiv.innerHTML = '';
                 me.inventory.forEach(item => {
@@ -614,31 +633,67 @@
             document.getElementById('aliveDisplay').innerText = aliveCount;
         }
 
+        function updateMinimap(state) {
+            const mm = document.getElementById('minimap-container');
+            if (mm.style.display === 'none') return;
+            mm.innerHTML = '';
+            const scale = mm.clientWidth / MAP_SIZE;
+
+            // Draw Players
+            Object.values(state.players).forEach(p => {
+                if (!p.alive) return;
+                const dot = document.createElement('div');
+                dot.className = 'mm-dot';
+                dot.style.background = (p.id === myId) ? '#00bfff' : '#aaa';
+                dot.style.left = (p.x * scale) + 'px';
+                dot.style.top = (p.y * scale) + 'px';
+                mm.appendChild(dot);
+            });
+
+            // Draw Boss
+            state.wolves.forEach(w => {
+                if (w.isWhite && w.hp > 0) {
+                    const dot = document.createElement('div');
+                    dot.className = 'mm-dot';
+                    dot.style.background = 'white';
+                    dot.style.boxShadow = '0 0 5px white';
+                    dot.style.width = '6px'; dot.style.height = '6px';
+                    dot.style.left = (w.x * scale) + 'px';
+                    dot.style.top = (w.y * scale) + 'px';
+                    mm.appendChild(dot);
+                }
+            });
+        }
+
         // --- INPUT HANDLING ---
         function setupInput() {
             window.addEventListener('keydown', e => {
                 keys[e.key] = true;
 
+                // Prevent typing in chat from moving player
                 if (document.activeElement === document.getElementById('chatInput')) return;
 
                 if (e.code === 'Space') socket.emit('playerAttack');
                 if (e.key.toLowerCase() === 'e') socket.emit('tryLoot');
                 if (e.key.toLowerCase() === 'q') toggleInventory();
+                if (e.key.toLowerCase() === 'm') toggleMinimap();
 
-                // Admin Panels
+                // Admin Shortcuts
                 if (e.shiftKey && e.key.toLowerCase() === 'g') {
                     if (isAdmin) document.getElementById('globalAdminPanel').style.display = 'block';
                 }
                 if (e.shiftKey && e.key.toLowerCase() === 'i') {
-                    // Power Panel (Shift+I)
+                    // This is the new POWER PANEL you requested
                     document.getElementById('powerPanel').style.display = 'block';
                 }
             });
             window.addEventListener('keyup', e => keys[e.key] = false);
         }
 
-        function toggleInventory() {
-            document.getElementById('inventoryPanel').classList.toggle('visible');
+        function toggleInventory() { document.getElementById('inventoryPanel').classList.toggle('visible'); }
+        function toggleMinimap() {
+            const mm = document.getElementById('minimap-container');
+            mm.style.display = (mm.style.display === 'none') ? 'block' : 'none';
         }
 
         // --- CHAT SYSTEM ---
@@ -659,6 +714,7 @@
         function spawnGlobalWolf() { socket.emit('globalAdminAction', { action: 'spawnWolf' }); }
         function killAllServer() { socket.emit('globalAdminAction', { action: 'killAll' }); }
 
+        // Send local power actions (God Mode, Local Wolf)
         function sendPowerAction(type) {
             socket.emit('adminPowerAction', { type: type });
         }
@@ -670,13 +726,12 @@
             setTimeout(() => el.style.opacity = 0, 3000);
         }
 
-        // --- VOICE CHAT (WebRTC) ---
+        // --- VOICE CHAT SETUP ---
         function initVoice() {
             navigator.mediaDevices.getUserMedia({ video: false, audio: true })
                 .then(stream => {
                     localStream = stream;
-                    // Mute by default
-                    localStream.getAudioTracks()[0].enabled = false;
+                    localStream.getAudioTracks()[0].enabled = false; // Muted by default
                     socket.emit('join-voice');
                 })
                 .catch(err => console.log("Mic access denied or error:", err));
@@ -687,38 +742,20 @@
             const track = localStream.getAudioTracks()[0];
             track.enabled = !track.enabled;
             const btn = document.getElementById('micBtn');
-            if (track.enabled) {
-                btn.className = "voice-btn mic-on";
-            } else {
-                btn.className = "voice-btn mic-off";
-            }
+            btn.className = track.enabled ? "voice-btn mic-on" : "voice-btn mic-off";
         }
 
         function createPeer(userToSignal, callerID, stream) {
             const peer = new SimplePeer({ initiator: true, tricke: false, stream: stream });
-
-            peer.on('signal', signal => {
-                socket.emit('voice-signal', { target: userToSignal, callerID: callerID, signal: signal });
-            });
-
-            peer.on('stream', remoteStream => {
-                playAudioStream(remoteStream);
-            });
-
+            peer.on('signal', signal => socket.emit('voice-signal', { target: userToSignal, callerID: callerID, signal: signal }));
+            peer.on('stream', remoteStream => playAudioStream(remoteStream));
             peers[userToSignal] = peer;
         }
 
         function addPeer(incomingSignal, callerID, stream) {
             const peer = new SimplePeer({ initiator: false, tricke: false, stream: stream });
-
-            peer.on('signal', signal => {
-                socket.emit('voice-signal', { target: callerID, callerID: socket.id, signal: signal });
-            });
-
-            peer.on('stream', remoteStream => {
-                playAudioStream(remoteStream);
-            });
-
+            peer.on('signal', signal => socket.emit('voice-signal', { target: callerID, callerID: socket.id, signal: signal }));
+            peer.on('stream', remoteStream => playAudioStream(remoteStream));
             peer.signal(incomingSignal);
             peers[callerID] = peer;
         }
