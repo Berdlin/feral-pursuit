@@ -5,27 +5,64 @@
     <meta charset="UTF-8">
     <title>Feral Pursuit - Briefing</title>
     <style>
-        /* ... use your existing CSS ... */
+        /* Horror themed intro styles */
+        @import url('https://fonts.googleapis.com/css2?family=Cinzel:wght@400;700&display=swap');
+
         body {
-            background-color: #050505;
-            color: #e0e0e0;
-            font-family: sans-serif;
+            background: radial-gradient(ellipse at center, #040204 0%, #000000 70%);
+            color: #e6e6e6;
+            font-family: 'Cinzel', serif;
             text-align: center;
-            padding-top: 50px;
+            padding-top: 40px;
+            -webkit-font-smoothing: antialiased;
+        }
+
+        h1 {
+            font-size: 3em;
+            letter-spacing: 3px;
+            color: #ff6b6b;
+            text-shadow: 0 0 12px rgba(255, 0, 0, 0.25), 0 4px 10px rgba(0, 0, 0, 0.6);
+            margin: 0 0 10px 0;
         }
 
         .record-box {
-            margin: 20px auto;
-            background: #111;
-            padding: 15px;
+            margin: 18px auto;
+            background: linear-gradient(180deg, rgba(20, 10, 10, 0.6), rgba(10, 5, 5, 0.6));
+            padding: 18px;
             width: fit-content;
-            border: 1px solid #333;
+            border: 1px solid rgba(120, 20, 20, 0.6);
+            box-shadow: 0 8px 30px rgba(0, 0, 0, 0.7);
+            border-radius: 6px;
         }
 
         .val {
-            font-size: 1.5em;
-            font-weight: bold;
-            color: gold;
+            font-size: 1.3em;
+            font-weight: 700;
+            color: #ffb86b;
+        }
+
+        .howto {
+            max-width: 760px;
+            margin: 26px auto;
+            background: rgba(0, 0, 0, 0.6);
+            padding: 18px;
+            border-radius: 8px;
+            border: 1px solid #330000;
+            color: #ddd;
+            text-align: left;
+            box-shadow: inset 0 0 30px rgba(128, 0, 0, 0.03);
+            font-size: 0.95em;
+        }
+
+        .howto h3 {
+            color: #ff6b6b;
+            margin-top: 0;
+        }
+
+        .controls {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 8px 24px;
         }
     </style>
 </head>
@@ -37,12 +74,42 @@
         <div>YOUR BEST: <span id="pbDisplay" class="val">--</span></div>
         <br>
         <div>WORLD RECORD: <span id="wrDisplay" class="val">LOADING...</span></div>
-        <div style="font-size:0.8em">HELD BY: <span id="wrHolder">--</span></div>
+        <div class="val" style="font-size:0.9em; color:#cfcfcf; margin-top:6px;">HELD BY: <span id="wrHolder">--</span>
+        </div>
     </div>
 
-    <div style="margin-top: 30px;">
-        <a href="gamestart.html"><button style="padding:15px;">SINGLE PLAYER</button></a>
-        <a href="gamelobby.html"><button style="padding:15px;">MULTIPLAYER</button></a>
+    <div style="margin-top: 26px;">
+        <a href="gamestart.html"><button
+                style="padding:14px 20px; font-weight:700; background:#2b0000; color:#fff; border:1px solid #550000;">SINGLE
+                PLAYER</button></a>
+    </div>
+
+    <div class="howto">
+        <h3>How to play</h3>
+        <p>You are a lone survivor hunting for supplies while avoiding the feral wolf packs. Each "Day" you collect
+            resources to strengthen your companions and prepare for the night hunt. Survive as many days as you can.</p>
+
+        <div class="controls">
+            <div>
+                <strong>Movement</strong>
+                <ul>
+                    <li>W / A / S / D or arrow keys — move</li>
+                    <li>On mobile — use the on-screen joystick</li>
+                </ul>
+            </div>
+            <div>
+                <strong>Actions</strong>
+                <ul>
+                    <li>Space — Attack</li>
+                    <li>E — Loot chests</li>
+                    <li>Q — Inventory</li>
+                    <li>M — Toggle minimap</li>
+                </ul>
+            </div>
+        </div>
+
+        <p style="margin-top:12px;">Tip: The blood moon arrives after the collection phase — when it does, run and
+            survive the wolf hunt. Keep companions alive, and use chests cautiously — some are traps.</p>
     </div>
 
     <script src="/socket.io/socket.io.js"></script>

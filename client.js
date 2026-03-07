@@ -92,5 +92,7 @@ socket.on('lobbyUpdate', (players) => {
 });
 
 socket.on('gameStarted', () => {
-    window.location.href = 'multiplay.html';
+    // Multiplayer has been removed. Redirect players to single-player start.
+    alert('Multiplayer mode is disabled. Redirecting to single-player.');
+    window.location.href = 'gamestart.html';
 });

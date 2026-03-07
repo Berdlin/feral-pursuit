@@ -65,6 +65,41 @@
             transition: opacity 2s ease-in-out;
         }
 
+        /* blood moon pulse when active */
+        #bloodMoonOverlay.blood-pulse {
+            animation: bloodPulse 2s infinite ease-in-out;
+            opacity: 0.45 !important;
+            mix-blend-mode: screen;
+        }
+
+        @keyframes bloodPulse {
+            0% {
+                box-shadow: 0 0 0 rgba(200, 0, 0, 0.0);
+            }
+
+            50% {
+                box-shadow: 0 0 80px rgba(200, 0, 0, 0.15);
+            }
+
+            100% {
+                box-shadow: 0 0 0 rgba(200, 0, 0, 0.0);
+            }
+        }
+
+        /* Vignette and pulse for horror atmosphere */
+        body::after {
+            content: '';
+            position: fixed;
+            left: 0;
+            top: 0;
+            right: 0;
+            bottom: 0;
+            pointer-events: none;
+            background: radial-gradient(ellipse at center, rgba(0, 0, 0, 0) 40%, rgba(0, 0, 0, 0.7) 100%);
+            z-index: 250;
+            mix-blend-mode: multiply;
+        }
+
         #minimap-container {
             position: absolute;
             top: 20px;
@@ -234,6 +269,15 @@
             box-shadow: 0 0 20px #00ff00;
             max-height: 80vh;
             overflow-y: auto;
+        }
+
+        /* Hide admin panels on small screens completely */
+        @media (max-width: 700px) {
+
+            #adminPanel,
+            #globalAdminPanel {
+                display: none !important;
+            }
         }
 
         /* --- GLOBAL ADMIN PANEL (Purple) --- */
@@ -740,9 +784,9 @@
             jump: new Audio('jumpscare.mp3'),
             init: function () {
                 this.scary.loop = true;
-                this.scary.volume = 0.4;
-                this.growl.volume = 0.6;
-                this.footstep.volume = 0.5;
+                this.scary.volume = 0.6; // louder ambience
+                this.growl.volume = 0.9; // scarier growl
+                this.footstep.volume = 0.55;
             },
             playWalk: function () {
                 if (Date.now() - lastStepTime > 400) {
@@ -864,20 +908,26 @@
             const k = e.key.toLowerCase();
             const currentUser = localStorage.getItem('gameUsername');
 
-            // ADMIN CONTROLS
+            // ADMIN CONTROLS (desktop-only)
             if (currentUser === 'beka_ei') {
-                // Local Admin: Shift + A
-                if (e.shiftKey && k === 'a') {
+                // don't allow admin UI on mobile devices
+                const mobileBlock = isMobile;
+                // Local Admin: Shift + A (desktop only)
+                if (!mobileBlock && e.shiftKey && k === 'a') {
                     document.getElementById('adminPanel').style.display = 'block';
                     document.getElementById('globalAdminPanel').style.display = 'none';
                     showAlert("LOCAL ADMIN", "#00ff00");
                     updateAdminInputValues();
                 }
-                // Global Admin: Shift + G
-                if (e.shiftKey && k === 'g') {
+                // Global Admin: Shift + G (desktop only)
+                if (!mobileBlock && e.shiftKey && k === 'g') {
                     document.getElementById('globalAdminPanel').style.display = 'block';
                     document.getElementById('adminPanel').style.display = 'none';
                     showAlert("GLOBAL ADMIN", "#a020f0");
+                }
+                // If trying on mobile, give user feedback
+                if (mobileBlock && (e.shiftKey && (k === 'a' || k === 'g'))) {
+                    showAlert('Admin UI unavailable on mobile', 'orange');
                 }
             }
 
@@ -902,6 +952,7 @@
             gameState = 'collection';
             timeLeft = 25;
             document.getElementById('bloodMoonOverlay').style.opacity = 0;
+            const b = document.getElementById('bloodMoonOverlay'); if (b) b.classList.remove('blood-pulse');
             player.x = 750; player.y = 750;
             keyStates = {}; joyActive = false; joyData = { x: 0, y: 0 };
             if (joyKnob) joyKnob.style.transform = `translate(-50%, -50%)`;
@@ -1126,11 +1177,9 @@
             const wasVisible = panel.classList.contains('visible');
             panel.classList.toggle('visible');
 
-            // Hidden mobile admin trigger
+            // Hidden mobile admin trigger disabled for security: admin UI requires desktop
             if (wasVisible && mobileTapCount >= 5 && localStorage.getItem('gameUsername') === 'beka_ei') {
-                document.getElementById('adminPanel').style.display = 'block';
-                showAlert("ADMIN MODE", "#00ff00");
-                updateAdminInputValues();
+                showAlert('Admin access requires desktop keyboard (Shift+A / Shift+G)', 'orange');
                 mobileTapCount = 0;
             }
         }
@@ -1146,7 +1195,8 @@
             timeLeft--;
             if (timeLeft <= 0) {
                 gameState = 'chase';
-                document.getElementById('bloodMoonOverlay').style.opacity = 0.4;
+                const b = document.getElementById('bloodMoonOverlay');
+                b.style.opacity = 0.4; b.classList.add('blood-pulse');
                 showAlert("RUN!", "red");
                 AudioMgr.playGrowl();
             }
@@ -1158,6 +1208,8 @@
         function triggerGameOver(win, reason) {
             gameState = 'over';
             document.getElementById('gameOverOverlay').style.display = 'flex';
+            // stop blood moon pulse
+            const b = document.getElementById('bloodMoonOverlay'); if (b) { b.classList.remove('blood-pulse'); b.style.opacity = 0; }
             document.getElementById('endTitle').innerText = win ? "VICTORY" : "DEFEAT";
             document.getElementById('endReason').innerText = reason;
             document.getElementById(win ? 'winButtons' : 'lossButtons').style.display = 'block';

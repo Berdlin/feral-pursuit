@@ -90,6 +90,9 @@
     <div class="container">
         <h1>Lobby</h1>
         <div id="connection-screen">
+            <p style="color:#ffcc99;">Multiplayer mode has been removed. Only Single Player is supported now.</p>
+            <a href="gamestart.html" class="btn">Go to Single Player</a>
+            <hr style="border-top:1px solid #222; margin:18px 0;">
             <label>OPERATOR NAME</label>
             <input type="text" id="usernameInput" placeholder="Enter Codename" required oninput="checkName()">
 
@@ -199,7 +202,7 @@
             });
         });
 
-        socket.on('gameStarted', () => { window.location.href = 'multiplay.html'; });
+        socket.on('gameStarted', () => { alert('Multiplayer has been disabled. Starting single-player instead.'); window.location.href = 'gamestart.html'; });
     </script>
 </body>
 
